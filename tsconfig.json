@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "baseUrl": "app",
+    "esModuleInterop": true,
+    "jsx": "preserve",
+    "target": "es5",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext",
+    ],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "strictNullChecks": false,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitAny": true,
+    "downlevelIteration": true
+  },
+  "include": [
+    "src"
+  ]
+}
