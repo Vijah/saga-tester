@@ -82,7 +82,9 @@ Each element of the array is a tuple of `times`, `strict`, `action` or `type` (o
 For instance, if `someAction` is called twice, once as `someAction('abc')` and once as `someAction(42, 42)`,
 and if `doOtherAction` of type 'TYPE' is called with unknown parameters, an appropriate config is:
 
-```js [{ times: 1, action: someAction('abc') }, { action: someAction(42, 42) }, { type: 'TYPE' }] ```
+```js
+[{ times: 1, action: someAction('abc') }, { action: someAction(42, 42) }, { type: 'TYPE' }]
+```
 
 Note that if `times` is not provided, an error is thrown if the method is never called.
 
@@ -96,7 +98,9 @@ Each value is an array of objects containing `times`, `params`, `throw`, `output
 if `someCall` is called once with `call(someCall, 'abc')` and expected output 'asd', and once with `call(someCall, 42, 42)`,
 an appropriate config is:
 
-```js { someCall: [{ times: 1, params: ['abc'], output: 'asd' }, { params: [42, 42] }] } ```
+```js
+{ someCall: [{ times: 1, params: ['abc'], output: 'asd' }, { params: [42, 42] }] }
+```
 
 Note that if `times` is not provided, it acts as "at least once" an error is thrown if the method is never called.
 
