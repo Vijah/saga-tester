@@ -1,4 +1,4 @@
-# Package name
+# saga-tester
 
 SagaTester is a tester library for redux-saga, offering the following features:
 
