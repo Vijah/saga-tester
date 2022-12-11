@@ -1,6 +1,6 @@
-# saga-tester
+# @vijah/saga-tester
 
-SagaTester is a tester library for redux-saga, offering the following features:
+A tester library for redux-saga, offering the following features:
 
 - Is order-independent (changing yield order does not break the test, making your tests less fragile).
 - Handles the following verbs: put, select, call, take, all, race, takeLatest, takeEvery, takeLeading, and debounce.

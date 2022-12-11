@@ -1,7 +1,21 @@
 {
-  "name": "saga-tester",
+  "name": "@vijah/saga-tester",
   "version": "1.0.0",
-  "private": false,
+  "description": "Order-independent tester library for redux-saga",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Vijah/saga-tester.git"
+  },
+  "keywords": [
+    "redux-saga",
+    "test"
+  ],
+  "bugs": {
+    "url": "https://github.com/Vijah/saga-tester/issues"
+  },
+  "homepage": "https://github.com/Vijah/saga-tester#readme",
+  "main": "index.js",
+  "license": "ISC",
   "scripts": {
     "build": "node ./src/scripts/copy-release",
     "test": "jest --coverage=true",
