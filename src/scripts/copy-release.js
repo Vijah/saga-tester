@@ -8,6 +8,8 @@ shell.rm('-rf', 'build/*.d.ts');
 shell.rm('-rf', 'build/*.json');
 
 shell.cp('-R', 'src/app/*', 'build');
+shell.cp('README.md', 'build/README.md');
+
 shell.rm('-rf', 'build/**/tests');
 
 const packageJson = require('../../package.json');
