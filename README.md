@@ -177,6 +177,7 @@ It is possible to do this by providing a third parameter, e.g.
 
 ```js
 const tester = new SagaTester(saga, config, false); // <= assert false
+tester.run(action);
 expect(tester.returnValue).toBe('something');
 expect(tester.errorList.length).toBe(0);
 ```
