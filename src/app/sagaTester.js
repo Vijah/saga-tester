@@ -300,7 +300,7 @@ class SagaTester {
     if (currentResult.value.type === 'PUT') {
       return this.processPutVerb(generator, currentResult.value, noNext);
     }
-    if (currentResult.value.type === 'FORK' && ['takeLeading', 'takeLatest', 'takeEvery', 'debounceHelper'].includes(currentResult.value.payload.fn.name)) {
+    if (currentResult.value.type === 'FORK' && ['takeLeading', 'takeLatest', 'takeEvery', 'debounceHelper', 'throttle'].includes(currentResult.value.payload.fn.name)) {
       assert(isRacing || this.actions !== undefined, 'Error in the configuration of SagaTester: Found a takeEvery, takeLeading or takeLatest action, but no actions in the context of the saga. Either pass an action as the only parameter to your saga or define effectiveActions in your configs.');
       const { args } = currentResult.value.payload;
       let type;

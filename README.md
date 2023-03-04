@@ -3,7 +3,7 @@
 A tester library for redux-saga, offering the following features:
 
 - Is order-independent (changing yield order does not break the test, making your tests less fragile).
-- Handles the following verbs: put, select, call, take, all, race, fork, takeLatest, takeEvery, takeLeading, and debounce.
+- Handles the following verbs: put, select, call, take, all, race, fork, takeLatest, takeEvery, takeLeading, throttle and debounce.
 - Runs the entire generator method from start to finish with one holistic config.
 - Is indirectly a generator function tester.
 
@@ -115,6 +115,8 @@ Only one of `output`, `throw` or `call: true` should ever be provided.
 `expectedGenerators`: `Object` where each key is the ID of a mocked generator (use mockGenerator).
 Each value is an array of objects containing `times`, `params`, `throw`, `call` and `output` (all optional).
 
+If a `fork` verb is yielded, it counts as a generator call (and is executed synchronously inside the test).
+
 A generator is called during its execution if:
 
 - It is called by a `call` verb, and the corresponding expectedCalls is set to `call: true`.
@@ -160,7 +162,7 @@ Only one of `output`, `throw` or `call: true` should ever be provided.
 
 ### config.effectiveActions
 
-`effectiveActions`: `Action[]` Indicating which actions are "active" in the context of take/takeEvery/takeLatest/takeLeading/debounce actions.
+`effectiveActions`: `Action[]` Indicating which actions are "active" in the context of take/takeEvery/takeLatest/takeLeading/debounce/throttle actions.
 Note that by default, if this is not specified, the first argument of the "run" method is considered to be a contextual action,
 unless the first argument is not an action.
 

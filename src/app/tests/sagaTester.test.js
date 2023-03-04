@@ -9,6 +9,7 @@ import {
   all,
   race,
   debounce,
+  throttle,
   fork,
 } from 'redux-saga/effects';
 import { createSelector } from 'reselect';
@@ -294,6 +295,33 @@ describe('SagaTester', () => {
 
       // Run the saga
       new SagaTester(debouncedCall, config).run();
+    });
+    it('should handle the throttle verb by treating it like a take verb', () => {
+      // Saga method for test
+      function* method() {
+        yield put({ type: 'TYPE1' });
+      }
+
+      function* method2() {
+        yield put({ type: 'TYPE2' });
+      }
+
+      function* throttledCall() {
+        yield takeLatest('TYPE', method2);
+        yield throttle(1500, 'actionType', method);
+      }
+
+      // Saga Tester config
+      const config = {
+        expectedActions: [
+          { type: 'TYPE1' },
+          { type: 'TYPE2' },
+        ],
+        effectiveActions: [{ type: 'actionType' }, { type: 'TYPE' }],
+      };
+
+      // Run the saga
+      new SagaTester(throttledCall, config).run();
     });
     it('should handle the fork verb like a generator call', () => {
       // Saga method for test
