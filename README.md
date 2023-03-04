@@ -3,7 +3,7 @@
 A tester library for redux-saga, offering the following features:
 
 - Is order-independent (changing yield order does not break the test, making your tests less fragile).
-- Handles the following verbs: put, select, call, take, all, race, retry, fork, takeLatest, takeEvery, takeLeading, throttle and debounce.
+- Handles the following redux-saga/effects: put, select, call, take, all, race, retry, fork, takeLatest, takeEvery, takeLeading, throttle and debounce.
 - Runs the entire generator method from start to finish with one holistic config.
 - Is indirectly a generator function tester.
 
@@ -166,7 +166,7 @@ Only one of `output`, `throw` or `call: true` should ever be provided.
 
 ### config.effectiveActions
 
-`effectiveActions`: `Action[]` Indicating which actions are "active" in the context of take/takeEvery/takeLatest/takeLeading/debounce/throttle actions.
+`effectiveActions`: `Action[]` Indicating which actions are "active" in the context of take/takeEvery/takeLatest/takeLeading/debounce/throttle effects.
 Note that by default, if this is not specified, the first argument of the "run" method is considered to be a contextual action,
 unless the first argument is not an action.
 
