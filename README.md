@@ -119,7 +119,7 @@ Each value is an array of objects containing `times`, `params`, `throw`, `call` 
 
 If a `fork` verb is yielded, it counts as a generator call (and is executed synchronously inside the test).
 
-If a `retry` verb is yielded using a generator, it acts as a generator call verb for that generator.
+If a `retry` verb is yielded using a generator, it runs that generator as if it had been yielded itself.
 
 A generator is called during its execution if:
 
