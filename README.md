@@ -3,7 +3,7 @@
 A tester library for redux-saga, offering the following features:
 
 - Is order-independent (changing yield order does not break the test, making your tests less fragile).
-- Handles the following verbs: put, select, call, take, all, race, fork, takeLatest, takeEvery, takeLeading, throttle and debounce.
+- Handles the following verbs: put, select, call, take, all, race, retry, fork, takeLatest, takeEvery, takeLeading, throttle and debounce.
 - Runs the entire generator method from start to finish with one holistic config.
 - Is indirectly a generator function tester.
 

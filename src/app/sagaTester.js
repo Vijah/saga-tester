@@ -290,7 +290,6 @@ class SagaTester {
    */
   processVerb(generator, currentResult, noNext = false, isRacing = false) {
     const noActionConfig = isArrayEmpty(this.actions);
-
     if (currentResult.value.type === 'SELECT') {
       return this.processSelectVerb(generator, currentResult.value, noNext);
     }
@@ -381,8 +380,21 @@ class SagaTester {
   }
 
   processCallVerb(generator, value, noNext) {
-    const methodId = value.payload.fn.name;
-    const { args } = value.payload;
+    let methodId = value.payload.fn.name;
+    let { args } = value.payload;
+
+    if (methodId === 'retry') {
+      const remainingArgs = args.filter((x, i) => i >= 3);
+      if (args[2].name === '') {
+        // Treat retry as (probably) a generator
+        return this.processVerb(generator, { value: args[2](...remainingArgs) }, false);
+      }
+      // Treat retry as call
+      // eslint-disable-next-line prefer-destructuring, no-param-reassign
+      value.payload.fn = args[2]; value.payload.args = remainingArgs;
+      methodId = args[2].name;
+      args = remainingArgs;
+    }
     if (!Object.keys(this.callCalls).includes(methodId)) {
       throw new Error(`Received CALL verb with a method named ${methodId}, but the SagaTest was not configured to receive this CALL (step ${this.step})`);
     }

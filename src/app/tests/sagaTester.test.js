@@ -11,6 +11,7 @@ import {
   debounce,
   throttle,
   fork,
+  retry,
 } from 'redux-saga/effects';
 import { createSelector } from 'reselect';
 
@@ -350,6 +351,38 @@ describe('SagaTester', () => {
       // Run the saga
       new SagaTester(saga, config).run();
     });
+    it('should handle the retry verb by treating it as a CALL verb', () => {
+      // Saga method for test
+      const method1 = mockGenerator('method1');
+
+      function method2(arg) {
+        return `${arg}-method2`;
+      }
+
+      function* saga() {
+        let result = yield retry(3, 1000, method1, 'arg1');
+        yield put({ type: 'TYPE1', result });
+        result = yield retry(3, 1000, method2, 'arg2');
+        yield put({ type: 'TYPE2', result });
+      }
+
+      // Saga Tester config
+      const config = {
+        expectedCalls: {
+          method2: [{ times: 1, params: ['arg2'], call: true }],
+        },
+        expectedGenerators: {
+          method1: [{ times: 1, params: ['arg1'], output: 'method1-output' }],
+        },
+        expectedActions: [
+          { action: { type: 'TYPE1', result: 'method1-output' }, times: 1 },
+          { action: { type: 'TYPE2', result: 'arg2-method2' }, times: 1 },
+        ],
+      };
+
+      // Run the saga
+      new SagaTester(saga, config).run();
+    });
   });
 
   describe('handling selectors', () => {
@@ -600,7 +633,7 @@ describe('SagaTester', () => {
   });
 
   describe('handling CALLs to async methods', () => {
-    it('should keep track of CALL verbs, also handling RETRY verbs', () => {
+    it('should keep track of CALL verbs', () => {
       // Setup actions and methods
       const action = { type: 'TYPE' };
       const method1 = () => {};
