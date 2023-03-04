@@ -448,7 +448,6 @@ class SagaTester {
       let result = value.generator ? value.generator : value.payload.fn(...value.payload.args);
       if (result != null && typeof result.next === 'function') {
         result = this.processGenerator(result);
-        return nextOrReturn(generator, result, noNext);
       }
       return nextOrReturn(generator, result, noNext);
     }
