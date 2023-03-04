@@ -9,6 +9,7 @@ import {
   all,
   race,
   debounce,
+  fork,
 } from 'redux-saga/effects';
 import { createSelector } from 'reselect';
 
@@ -293,6 +294,33 @@ describe('SagaTester', () => {
 
       // Run the saga
       new SagaTester(debouncedCall, config).run();
+    });
+    it('should handle the fork verb like a generator call', () => {
+      // Saga method for test
+      const method1 = mockGenerator('method1');
+
+      function* method2(arg) {
+        yield put({ type: 'TYPE2', arg });
+      }
+
+      function* saga() {
+        yield fork(method1, 'arg1');
+        yield fork(method2, 'arg2');
+      }
+
+      // Saga Tester config
+      const config = {
+        expectedActions: [
+          { type: 'TYPE1', times: 0 },
+          { action: { type: 'TYPE2', arg: 'arg2' }, times: 1 },
+        ],
+        expectedGenerators: {
+          method1: [{ times: 1, params: ['arg1'] }],
+        },
+      };
+
+      // Run the saga
+      new SagaTester(saga, config).run();
     });
   });
 

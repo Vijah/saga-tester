@@ -300,7 +300,7 @@ class SagaTester {
     if (currentResult.value.type === 'PUT') {
       return this.processPutVerb(generator, currentResult.value, noNext);
     }
-    if (currentResult.value.type === 'FORK' /* takeLatest, takeEvery, takeLeading */) {
+    if (currentResult.value.type === 'FORK' && ['takeLeading', 'takeLatest', 'takeEvery', 'debounceHelper'].includes(currentResult.value.payload.fn.name)) {
       assert(isRacing || this.actions !== undefined, 'Error in the configuration of SagaTester: Found a takeEvery, takeLeading or takeLatest action, but no actions in the context of the saga. Either pass an action as the only parameter to your saga or define effectiveActions in your configs.');
       const { args } = currentResult.value.payload;
       let type;
@@ -314,15 +314,15 @@ class SagaTester {
       }
 
       if (type === '*') {
-        // const result = this.processGenerator(method(this.actions[0]));
         return this.processSubGenerators(generator, method(this.actions[0]));
       }
       const listOfMatchers = Array.isArray(type) ? type : [type];
       const matchedAction = noActionConfig ? undefined : this.actions.find((action) => listOfMatchers.includes(action.type));
       if (matchedAction) {
-        // const result = this.processGenerator(method(matchedAction));
         return this.processSubGenerators(generator, method(matchedAction));
       }
+    } else if (currentResult.value.type === 'FORK') {
+      return this.processSubGenerators(generator, currentResult.value.payload.fn(...currentResult.value.payload.args));
     }
     if (currentResult.value.type === 'TAKE') {
       assert(isRacing || this.actions !== undefined, 'Error in the configuration of SagaTester: Found a take action, but no actions in the context of the saga. Either pass an action as the only parameter to your saga or define effectiveActions in your configs.');
@@ -352,7 +352,6 @@ class SagaTester {
       return nextOrReturn(generator, results, noNext);
     }
     if (typeof currentResult.value.next === 'function') {
-      // const result = this.processGenerator(currentResult.value);
       return this.processSubGenerators(generator, currentResult.value, noNext);
     }
     return nextOrReturn(generator, undefined, noNext);
