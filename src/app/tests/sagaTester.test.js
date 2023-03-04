@@ -105,11 +105,11 @@ describe('SagaTester', () => {
       expect(() => new SagaTester(saga, { expectedGenerators: { asd: {} } })).toThrow('expectedGenerators must be an object containing arrays');
 
       function* sagaWithTakeLatest() { yield takeLatest('TYPE', saga); }
-      expect(() => new SagaTester(sagaWithTakeLatest, {}).run()).toThrow('Error in the configuration of SagaTester: Found a takeEvery, takeLeading or takeLatest action, but no actions in the context of the saga. Either pass an action as the only parameter to your saga or define effectiveActions in your configs.');
+      expect(() => new SagaTester(sagaWithTakeLatest, {}).run()).toThrow('Error in the configuration of SagaTester: Found a takeLatest action, but no actions in the context of the saga. Either pass an action as the only parameter to your saga or define effectiveActions in your configs.');
       function* sagaWithTakeEvery() { yield takeEvery('TYPE', saga); }
-      expect(() => new SagaTester(sagaWithTakeEvery, {}).run()).toThrow('Error in the configuration of SagaTester: Found a takeEvery, takeLeading or takeLatest action, but no actions in the context of the saga. Either pass an action as the only parameter to your saga or define effectiveActions in your configs.');
+      expect(() => new SagaTester(sagaWithTakeEvery, {}).run()).toThrow('Error in the configuration of SagaTester: Found a takeEvery action, but no actions in the context of the saga. Either pass an action as the only parameter to your saga or define effectiveActions in your configs.');
       function* sagaWithTakeLeading() { yield takeLeading('TYPE', saga); }
-      expect(() => new SagaTester(sagaWithTakeLeading, {}).run()).toThrow('Error in the configuration of SagaTester: Found a takeEvery, takeLeading or takeLatest action, but no actions in the context of the saga. Either pass an action as the only parameter to your saga or define effectiveActions in your configs.');
+      expect(() => new SagaTester(sagaWithTakeLeading, {}).run()).toThrow('Error in the configuration of SagaTester: Found a takeLeading action, but no actions in the context of the saga. Either pass an action as the only parameter to your saga or define effectiveActions in your configs.');
 
       function* sagaWithTake() { yield take('TYPE'); }
       expect(() => new SagaTester(sagaWithTake, {}).run()).toThrow('Error in the configuration of SagaTester: Found a take action, but no actions in the context of the saga. Either pass an action as the only parameter to your saga or define effectiveActions in your configs.');
