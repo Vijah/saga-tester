@@ -909,13 +909,13 @@ describe('mockGenerator', () => {
   });
   it('should handle mockGenerator receiving the generator directly, and call the mocked generators if call: true', () => {
     const action = () => ({ type: 'type' });
-    function* foo(a) { yield put(action()); return `${a}-called`; }
-    const namedFoo = mockGenerator(foo);
+    function* whatever(a) { yield put(action()); return `${a}-called`; }
+    const namedFoo = mockGenerator(whatever);
     function* saga(a) { yield namedFoo(a); return yield namedFoo(a); }
 
     expect(
       new SagaTester(saga, {
-        expectedGenerators: { foo: [{ times: 2, params: ['bar'], call: true }] },
+        expectedGenerators: { whatever: [{ times: 2, params: ['bar'], call: true }] },
         expectedActions: [{ action: action(), times: 2 }],
       }).run('bar'),
     ).toBe('bar-called');

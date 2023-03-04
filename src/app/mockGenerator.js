@@ -1,7 +1,11 @@
 /* istanbul ignore next */
 function* foo() { /* */ }
-const GeneratorPrototypeName = Object.getPrototypeOf(foo).name;
-const isGenerator = (x) => typeof x === 'function' && Object.getPrototypeOf(x).name === GeneratorPrototypeName;
+const generatorPrototype = Object.getPrototypeOf(foo);
+const generatorPrototypeName = generatorPrototype.name;
+const isGenerator = (x) => typeof x === 'function' && (
+  /* istanbul ignore next */ (generatorPrototypeName.length > 0 && Object.getPrototypeOf(x).name === generatorPrototypeName) ||
+  /* istanbul ignore next */ (generatorPrototypeName.length === 0 && Object.getPrototypeOf(x) === generatorPrototype)
+);
 const giveGeneratorAName = (generator) => (...args) => {
   const actualGenerator = generator(...args);
   actualGenerator.args = args;

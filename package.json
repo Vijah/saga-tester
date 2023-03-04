@@ -1,6 +1,6 @@
 {
   "name": "@vijah/saga-tester",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Order-independent tester library for redux-saga",
   "repository": {
     "type": "git",
