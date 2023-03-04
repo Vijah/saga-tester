@@ -110,12 +110,16 @@ Note that if `times` is not provided, it acts as "at least once" an error is thr
 
 Only one of `output`, `throw` or `call: true` should ever be provided.
 
+If a `retry` verb is yielded using a named method, it acts as a `call` verb for that method.
+
 ### config.expectedGenerators
 
 `expectedGenerators`: `Object` where each key is the ID of a mocked generator (use mockGenerator).
 Each value is an array of objects containing `times`, `params`, `throw`, `call` and `output` (all optional).
 
 If a `fork` verb is yielded, it counts as a generator call (and is executed synchronously inside the test).
+
+If a `retry` verb is yielded using a generator, it acts as a generator call verb for that generator.
 
 A generator is called during its execution if:
 
