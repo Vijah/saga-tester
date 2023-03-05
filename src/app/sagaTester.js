@@ -322,6 +322,10 @@ class SagaTester {
         return this.processSubGenerators(generator, method(matchedAction));
       }
     } else if (currentResult.value.type === 'FORK') {
+      if (currentResult.value.payload.context != null) {
+        // eslint-disable-next-line no-param-reassign
+        currentResult.value.payload.fn = currentResult.value.payload.fn.bind(currentResult.value.payload.context);
+      }
       return this.processSubGenerators(generator, currentResult.value.payload.fn(...currentResult.value.payload.args));
     }
     if (currentResult.value.type === 'TAKE') {
@@ -394,6 +398,7 @@ class SagaTester {
     if (!Object.keys(this.callCalls).includes(methodId)) {
       throw new Error(`Received CALL verb with a method named ${methodId}, but the SagaTest was not configured to receive this CALL (step ${this.step})`);
     }
+
     const matchedCalls = this.callCalls[methodId].filter((config) => config.params === undefined || isEqual(config.params, args));
     if (matchedCalls.length === 0) {
       const expectedArgs = this.callCalls[methodId].map((el) => diffTwoObjects(el.params, args)).join('\n\n');
@@ -453,7 +458,16 @@ class SagaTester {
       return generator.throw(matchedCall.throw);
     }
     if (matchedCall.call) {
-      let result = value.generator ? value.generator : value.payload.fn(...value.payload.args);
+      let result;
+      if (value.generator) {
+        result = value.generator;
+      } else {
+        if (value.payload.context != null) {
+          // eslint-disable-next-line no-param-reassign
+          value.payload.fn = value.payload.fn.bind(value.payload.context);
+        }
+        result = value.payload.fn(...value.payload.args);
+      }
       if (result != null && typeof result.next === 'function') {
         result = this.processGenerator(result);
       }

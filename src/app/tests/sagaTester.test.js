@@ -1,11 +1,14 @@
+/* eslint-disable max-classes-per-file */
 import {
   takeLatest,
   takeLeading,
   takeEvery,
   take,
   put,
+  putResolve,
   select,
   call,
+  apply,
   all,
   race,
   debounce,
@@ -328,13 +331,17 @@ describe('SagaTester', () => {
       // Saga method for test
       const method1 = mockGenerator('method1');
 
-      function* method2(arg) {
-        yield put({ type: 'TYPE2', arg });
-      }
+      const context = { field: 'value' };
+
+      function* method2(arg) { yield put({ type: 'TYPE2', arg }); }
+      function* method3(arg) { yield put({ type: 'TYPE3', arg: `${arg}-${this.field}` }); }
+      function* method4(arg) { yield put({ type: 'TYPE4', arg: `${arg}-${this.field}` }); }
 
       function* saga() {
         yield fork(method1, 'arg1');
         yield fork(method2, 'arg2');
+        yield fork([context, method3], 'arg3');
+        yield fork({ context, fn: method4 }, 'arg4');
       }
 
       // Saga Tester config
@@ -342,6 +349,8 @@ describe('SagaTester', () => {
         expectedActions: [
           { type: 'TYPE1', times: 0 },
           { action: { type: 'TYPE2', arg: 'arg2' }, times: 1 },
+          { action: { type: 'TYPE3', arg: 'arg3-value' }, times: 1 },
+          { action: { type: 'TYPE4', arg: 'arg4-value' }, times: 1 },
         ],
         expectedGenerators: {
           method1: [{ times: 1, params: ['arg1'] }],
@@ -529,6 +538,32 @@ describe('SagaTester', () => {
       // Run the saga
       new SagaTester(saga, config).run(action);
     });
+    it('should handle the laternate putResolve effect', () => {
+      // Setup actions
+      const action = { type: 'TYPE' };
+
+      // Saga method for test
+      function* method() {
+        yield putResolve({ type: 'TYPE1' });
+        yield putResolve({ type: 'TYPE2', data: 'data' });
+        yield putResolve({ type: 'TYPE2', data: 'dataAgain' });
+        yield putResolve({ type: 'TYPE2', data: 'dataAgain' });
+        yield putResolve({ type: 'Something else!!!' });
+      }
+      function* saga() { yield takeLatest('TYPE', method); }
+
+      // Saga Tester config
+      const config = {
+        expectedActions: [
+          { type: 'TYPE1' },
+          { action: { type: 'TYPE2', data: 'data' } },
+          { times: 2, action: { type: 'TYPE2', data: 'dataAgain' } },
+        ],
+      };
+
+      // Run the saga
+      new SagaTester(saga, config).run(action);
+    });
     it('should list errors for each action not called as configured', () => {
       // Setup actions
       const action = { type: 'TYPE' };
@@ -697,6 +732,53 @@ describe('SagaTester', () => {
 
       // Run the saga
       new SagaTester(saga, config).run(action);
+    });
+    it('should handle call verbs with alternate apis', () => {
+      // Setup actions and methods
+      const action = { type: 'TYPE' };
+      class C {
+        field4 = 'value4';
+
+        method3(arg) { return `method3-${arg}-${this.field3}`; }
+
+        method4(arg) { return `method4-${arg}-${this.field4}`; }
+      }
+      const cInstance = new C();
+      const context = {
+        field1: 'value1',
+        field2: 'value2',
+        method2: function method2(arg) { return `method2-${arg}-${this.field2}`; },
+        field3: 'value3',
+        field4: 'value4',
+      };
+      function method1(arg) { return `method1-${arg}-${this.field1}`; }
+
+      // Saga method for test
+      function* saga() {
+        const results = [];
+        results.push(yield call([context, method1], 'input1'));
+        results.push(yield call([context, 'method2'], 'input2'));
+        results.push(yield call({ context, fn: cInstance.method3 }, 'input3'));
+        results.push(yield apply(cInstance, cInstance.method4, ['input4', 'input4-2']));
+        return results;
+      }
+      // Saga Tester config
+      const config = {
+        expectedCalls: {
+          method1: [{ times: 1, call: true, params: ['input1'] }],
+          method2: [{ times: 1, call: true, params: ['input2'] }],
+          method3: [{ times: 1, call: true, params: ['input3'] }],
+          method4: [{ times: 1, call: true, params: ['input4', 'input4-2'] }],
+        },
+      };
+
+      // Run the saga
+      expect(new SagaTester(saga, config).run(action)).toEqual([
+        'method1-input1-value1',
+        'method2-input2-value2',
+        'method3-input3-value3',
+        'method4-input4-value4',
+      ]);
     });
     it('should simulate a throw when a call is configured with a throw option', () => {
       // Setup actions and methods

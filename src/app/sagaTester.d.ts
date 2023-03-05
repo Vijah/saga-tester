@@ -3,7 +3,7 @@ type ActionType = { action: Action<any>, times?: number, strict?: boolean } |
   { type: string, params?: any[], times?: number };
 type CallType = { times?: number, params: any[], output: any } |
   { times?: number, params: any[], throw: any } |
-  { times?: number, params: any[], call: true };
+  { times?: number, params: any[], call: boolean };
 
 class SagaTester<Saga> {
   constructor(
