@@ -384,12 +384,8 @@ class SagaTester {
     let { args } = value.payload;
 
     if (methodId === 'retry') {
-      const remainingArgs = args.filter((x, i) => i >= 3);
-      if (args[2].name === '') {
-        // Treat retry as (probably) a generator
-        return this.processVerb(generator, { value: args[2](...remainingArgs) }, false);
-      }
       // Treat retry as call
+      const remainingArgs = args.filter((x, i) => i >= 3);
       // eslint-disable-next-line prefer-destructuring, no-param-reassign
       value.payload.fn = args[2]; value.payload.args = remainingArgs;
       methodId = args[2].name;

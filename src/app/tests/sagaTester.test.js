@@ -369,10 +369,8 @@ describe('SagaTester', () => {
       // Saga Tester config
       const config = {
         expectedCalls: {
-          method2: [{ times: 1, params: ['arg2'], call: true }],
-        },
-        expectedGenerators: {
           method1: [{ times: 1, params: ['arg1'], output: 'method1-output' }],
+          method2: [{ times: 1, params: ['arg2'], call: true }],
         },
         expectedActions: [
           { action: { type: 'TYPE1', result: 'method1-output' }, times: 1 },
@@ -926,6 +924,21 @@ describe('mockSelector', () => {
 });
 
 describe('mockGenerator', () => {
+  it('should be recognized inside a call verb as its given name', () => {
+    function* method1() { /* */ }
+    const result1 = mockGenerator(method1);
+    const result2 = mockGenerator('method2');
+    function* saga(a) { yield call(result1, a); return yield call(result2, a); }
+
+    expect(
+      new SagaTester(saga, {
+        expectedCalls: {
+          method1: [{ times: 1, params: ['input'] }],
+          method2: [{ times: 1, params: ['input'], output: 'output' }],
+        },
+      }).run('input'),
+    ).toBe('output');
+  });
   it('should wrap the name and args properties on the resulting generator', () => {
     const action = () => ({ type: 'type' });
     function* foo(a) { yield put(action()); return a; }

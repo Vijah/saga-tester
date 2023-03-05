@@ -93,7 +93,7 @@ action is encountered. It is true by default. Setting it to false will ignore si
  
 ### config.expectedCalls
 
-`expectedCalls`: `Object` where each key is an async method (dispatched with 'call').
+`expectedCalls`: `Object` where each key is an async method (dispatched with `call` -- note that the `retry` effect is treated as a `call`).
 Each value is an array of objects containing `times`, `params`, `throw`, `output` and `call` (all optional). For instance,
 if `someCall` is called once with `call(someCall, 'abc')` and expected output 'asd', and once with `call(someCall, 42, 42)`,
 an appropriate config is:
@@ -110,16 +110,12 @@ Note that if `times` is not provided, it acts as "at least once" an error is thr
 
 Only one of `output`, `throw` or `call: true` should ever be provided.
 
-If a `retry` verb is yielded using a named method, it acts as a `call` verb for that method.
-
 ### config.expectedGenerators
 
 `expectedGenerators`: `Object` where each key is the ID of a mocked generator (use mockGenerator).
 Each value is an array of objects containing `times`, `params`, `throw`, `call` and `output` (all optional).
 
 If a `fork` verb is yielded, it counts as a generator call (and is executed synchronously inside the test).
-
-If a `retry` verb is yielded using a generator, it runs that generator as if it had been yielded itself.
 
 A generator is called during its execution if:
 
