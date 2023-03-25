@@ -245,7 +245,11 @@ That said, the package is expected to remain in ES6, since it is a strictly test
 
 ### Possible future features 
 
+See [todo.md](todo.md)
+
+Other ideas not in the todo list:
+
 Mocking generators must be made manually by wrapping the generators inside mockGenerator; there is currently no other way of naming the resulting generator method. A babel plugin could be made to run on all relevant javascript, wrapping all exports of generator methods inside mockGenerator... If anyone ever codes this, that would be nice, although it should be opt-in (adding a generic import to the test file) so as not to pollute non-saga tests.
 
-It might be worth looking at the possibility to mock channels and other advanced saga methods, although it seems unlikely that it will be possible to use sagaTester to test actual concurrent behavior.
+That said, uncalled generators (like `call(someGenerator, someArg)`, or `fork(someGenerator, someArg)`) are named since we are passing the method and not the generator created by the method. This means mocking generators is ONLY useful if they are yielded (not including `yield*`) and ONLY if the user wishes to intercept the call (but if so, the user can just use `call`). Meaning the use case is very niche. What it would benefit is a slightly less confusing experience to inexperienced users.
 
