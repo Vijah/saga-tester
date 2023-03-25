@@ -3,7 +3,7 @@
 A tester library for redux-saga, offering the following features:
 
 - Is order-independent (changing yield order does not break the test, making your tests less fragile).
-- Handles the following redux-saga/effects: put, putResolve, select, call, all, race, retry, fork, take, takeLatest, takeEvery, takeLeading, throttle and debounce.
+- Handles the following redux-saga/effects: put, putResolve, select, call, apply, all, race, retry, take, takeLatest, takeEvery, takeLeading, throttle, debounce, fork, cancel, cancelled, join.
 - Runs the entire generator method from start to finish with one holistic config.
 - Is indirectly a generator function tester.
 
@@ -177,7 +177,59 @@ tester.run(action);
 expect(tester.returnValue).toBe('something');
 expect(tester.errorList.length).toBe(0);
 ```
- 
+
+## Concurrent execution
+
+While SagaTester seeks to be order-independent, certain features are provided to facilitate certain simple out-of-order behavior.
+
+These features are specific to `fork` effects. These effects create a pseudo-task during execution, and this pseudo-task is executed either immediately, when it is joined, or after a given amount of `yield` steps (`yield*` does not count). In order to defer execution, you must:
+
+- Mock the generator using `mockGenerator`
+- Configure `expectedGenerators` with the property `wait`; (`false` means instantaneous execution, `true` means wait until `join`, and a `number` means wait under a given amount of steps).
+
+Delaying the execution of `fork`ed tasks allows testing the behavior of sub-tasks which are, for instance, `cancel`led by the parent or itself. This allows support of `cancel` and `cancelled` effects.
+
+Furthermore, when inside a `join` containing a list of tasks, or within a `race` or `all` containing multiple joins, the pseudo-tasks are set to finish in the configured order. This also works for tasks which are forked inside another `fork` or a `call`.
+
+A current limitation is that `debounce` and `delay` all execute instantly regardless.
+
+Example from the unit tests:
+
+```js
+it('should treat fork as if creating a task with the given output, deferring its execution, and handling cancellation status', () => {
+  let executionOrder = 0;
+  function* method(arg) {
+    executionOrder += 1;
+    return `${arg}-executed-${executionOrder}`;
+  }
+  const mockMethod = mockGenerator(method);
+
+  function* saga() {
+    const task1 = yield fork(mockMethod, 'arg1');
+    const task2 = yield fork(mockMethod, 'arg2');
+    const task3 = yield fork(mockMethod, 'arg3');
+    const task4 = yield fork(mockMethod, 'arg4');
+    return yield join([task1, task2, task3, task4]);
+  }
+
+  expect(new SagaTester(saga, {
+    expectedGenerators: {
+      method: [
+        { params: ['arg1'], call: true, wait: 1 },
+        { params: ['arg2'], call: true },
+        { params: ['arg3'], call: true, wait: 99 },
+        { params: ['arg4'], call: true, wait: 50 },
+      ],
+    },
+  }).run()).toEqual([
+    'arg1-executed-2', // Delayed by one; executed after task2
+    'arg2-executed-1', // wait is false by default; executed instantly
+    'arg3-executed-4', // Terminated by joint, but after task 3 because wait is higher
+    'arg4-executed-3',
+  ]);
+});
+```
+
 ## Roadmap
 
 ### State of the library

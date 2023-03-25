@@ -1,4 +1,3 @@
-/* eslint-disable max-classes-per-file */
 import {
   takeLatest,
   takeLeading,
@@ -15,6 +14,9 @@ import {
   throttle,
   fork,
   retry,
+  cancelled,
+  cancel,
+  join,
 } from 'redux-saga/effects';
 import { createSelector } from 'reselect';
 
@@ -118,6 +120,222 @@ describe('SagaTester', () => {
       function* sagaWithTake() { yield take('TYPE'); }
       expect(() => new SagaTester(sagaWithTake, {}).run()).toThrow('Error in the configuration of SagaTester: Found a take action, but no actions in the context of the saga. Either pass an action as the only parameter to your saga or define effectiveActions in your configs.');
       expect(() => new SagaTester(sagaWithTake, {}).run({ type: 'NO' })).toThrow('Error in the configuration of SagaTester: Found a take action looking for an action of type TYPE, but no such effectiveAction exists. Add this action in the effectiveActions config to solve this issue.');
+    });
+  });
+
+  describe('fork', () => {
+    it('should handle the fork verb like a generator call', () => {
+      // Saga method for test
+      const context = { field: 'value' };
+      const method1 = mockGenerator('method1');
+      function* method2(arg) { yield put({ type: 'TYPE2', arg }); }
+      function* method3(arg) { yield put({ type: 'TYPE3', arg: `${arg}-${this.field}` }); }
+      function* method4(arg) { yield put({ type: 'TYPE4', arg: `${arg}-${this.field}` }); }
+
+      function* saga() {
+        yield fork(method1, 'arg1');
+        yield fork(method2, 'arg2');
+        yield fork([context, method3], 'arg3');
+        yield fork({ context, fn: method4 }, 'arg4');
+      }
+
+      // Saga Tester config
+      const config = {
+        expectedActions: [
+          { type: 'TYPE1', times: 0 },
+          { action: { type: 'TYPE2', arg: 'arg2' }, times: 1 },
+          { action: { type: 'TYPE3', arg: 'arg3-value' }, times: 1 },
+          { action: { type: 'TYPE4', arg: 'arg4-value' }, times: 1 },
+        ],
+        expectedGenerators: {
+          method1: [{ times: 1, params: ['arg1'] }],
+        },
+      };
+
+      // Run the saga
+      new SagaTester(saga, config).run();
+    });
+    it('should treat fork as if creating a task with the given output, deferring its execution, and handling cancellation status', () => {
+      // Saga method for test
+      const method1 = mockGenerator('method1');
+      const mockCall = () => {};
+      function* method2(arg) {
+        try {
+          if (arg === 'arg6') {
+            yield cancel();
+          }
+          yield call(mockCall);
+        } catch {
+          const isCancelled = yield cancelled();
+          yield put({ type: 'TYPE', value: `method2-${arg}-${isCancelled ? 'cancelled' : 'notCancelled'}` });
+        }
+        const isCancelled = yield cancelled();
+        return `method2-${arg}-${isCancelled ? 'cancelled' : 'notCancelled'}`;
+      }
+      const mockMethod2 = mockGenerator(method2);
+
+      function* saga() {
+        const task1 = yield fork(method1, 'arg1');
+        const task2 = yield fork(mockMethod2, 'arg2');
+        const task3 = yield fork(mockMethod2, 'arg3');
+        const runsTooFast = yield fork(mockMethod2, 'arg4');
+        const notCancelled = yield fork(mockMethod2, 'arg5');
+        const selfCancelled = yield fork(mockMethod2, 'arg6');
+        const notRun = yield fork(mockMethod2, 'arg7');
+
+        // Handle both single parameters and array calls for cancel and join
+        yield cancel(task1);
+        yield cancel([task2, task3, runsTooFast, notRun]);
+
+        const results = yield join([task1, task2, task3, runsTooFast, notCancelled]);
+        results.push(yield join(selfCancelled));
+
+        return results;
+      }
+
+      // Saga Tester config
+      const config = {
+        expectedActions: [
+          { action: { type: 'TYPE', value: 'method2-arg2-cancelled' }, times: 1 },
+          { action: { type: 'TYPE', value: 'method2-arg3-cancelled' }, times: 1 },
+          { action: { type: 'TYPE', value: 'method2-arg4-notCancelled' }, times: 1 },
+          { action: { type: 'TYPE', value: 'method2-arg5-notCancelled' }, times: 1 },
+          { action: { type: 'TYPE', value: 'method2-arg6-cancelled' }, times: 1 },
+        ],
+        expectedCalls: {
+          mockCall: [{ times: 5, throw: 'whatever' }],
+        },
+        expectedGenerators: {
+          method1: [{ times: 1, params: ['arg1'], output: 'the-mocked-one' }],
+          method2: [
+            { params: ['arg2'], call: true, wait: true },
+            { params: ['arg3'], call: true, wait: true },
+            { params: ['arg4'], call: true, wait: false },
+            { params: ['arg5'], call: true, wait: true },
+            { params: ['arg6'], call: true, wait: true },
+            { params: ['arg7'], call: true, wait: true },
+          ],
+        },
+      };
+
+      // Run the saga
+      expect(new SagaTester(saga, config).run()).toEqual([
+        'the-mocked-one',
+        'method2-arg2-cancelled',
+        'method2-arg3-cancelled',
+        'method2-arg4-notCancelled',
+        'method2-arg5-notCancelled',
+        'method2-arg6-cancelled',
+      ]);
+    });
+    it('should treat fork as if creating a task with the given output, deferring its execution, and handling cancellation status', () => {
+      let executionOrder = 0;
+      function* method(arg) {
+        executionOrder += 1;
+        return `${arg}-executed-${executionOrder}`;
+      }
+      const mockMethod = mockGenerator(method);
+
+      function* saga() {
+        const task1 = yield fork(mockMethod, 'arg1');
+        const task2 = yield fork(mockMethod, 'arg2');
+        const task3 = yield fork(mockMethod, 'arg3');
+        const task4 = yield fork(mockMethod, 'arg4');
+        return yield join([task1, task2, task3, task4]);
+      }
+
+      expect(new SagaTester(saga, {
+        expectedGenerators: {
+          method: [
+            { params: ['arg1'], call: true, wait: 1 },
+            { params: ['arg2'], call: true },
+            { params: ['arg3'], call: true, wait: 99 },
+            { params: ['arg4'], call: true, wait: 50 },
+          ],
+        },
+      }).run()).toEqual([
+        'arg1-executed-2', // Delayed by one; executed after task2
+        'arg2-executed-1', // wait is false by default; executed instantly
+        'arg3-executed-4', // Terminated by joint, but after task 3 because wait is higher
+        'arg4-executed-3',
+      ]);
+    });
+    it('should end forked tasks in the correct order when they are yielded simultaneously inside an all effect', () => {
+      let executionOrder = 0;
+      function* method(arg) {
+        executionOrder += 1;
+        return `${arg}-executed-${executionOrder}`;
+      }
+      function* deeplyNestedMethod() {
+        const task = yield fork(method, 'deep');
+        return yield join(task);
+      }
+      function* methodNested(arg) {
+        const task1 = yield fork(method, arg);
+        const task2 = yield fork(method, 'arg7');
+        const callResult = yield call(deeplyNestedMethod);
+        const results = yield join([task1, task2]);
+        results.push(callResult);
+        return results;
+      }
+      function* calledMethod(arg) {
+        const task = yield fork(method, arg);
+        const taskResult = yield join([task]);
+        return `calledMethod-${taskResult[0]}`;
+      }
+      const mockMethodNested = mockGenerator(methodNested);
+
+      function* saga() {
+        const task1 = yield fork(method, 'arg1');
+        const task2 = yield fork(method, 'arg2');
+        const task3 = yield fork(method, 'arg3');
+        const task4 = yield fork(method, 'arg4');
+        const task5 = yield fork(method, 'arg5');
+        const task6 = yield fork(mockMethodNested, 'arg6');
+        const task8 = call(calledMethod, 'arg8');
+        const results = yield all({
+          task1: join(task1),
+          task2: join(task2),
+          sub: all([join([task3, task4]), all([join(task5), join(task6)])]),
+          task8,
+        });
+        return results;
+      }
+
+      expect(new SagaTester(saga, {
+        expectedGenerators: {
+          method: [
+            { params: ['arg1'], call: true, wait: 50 },
+            { params: ['arg2'], call: true, wait: true },
+            { params: ['arg3'], call: true, wait: 70 },
+            { params: ['arg4'], call: true, wait: 60 },
+            { params: ['arg5'], call: true, wait: 100 },
+            { params: ['arg6'], call: true, wait: 200 },
+            { params: ['arg7'], call: true, wait: 80 },
+            { params: ['arg8'], call: true, wait: 110 },
+            { params: ['deep'], call: true, wait: 90 },
+          ],
+          methodNested: [{ params: ['arg6'], call: true, wait: 55 }],
+        },
+        expectedCalls: {
+          calledMethod: [{ params: ['arg8'], call: true }],
+          deeplyNestedMethod: [{ call: true }],
+        },
+      }).run()).toEqual({
+        task1: 'arg1-executed-1', // wait 50
+        task2: 'arg2-executed-9', // wait: true (aka after everything else)
+        sub: [
+          ['arg3-executed-3', 'arg4-executed-2'], // wait 70, wait 60
+          ['arg5-executed-6', // wait 100
+            [
+              'arg6-executed-8', // wait 200, (same generator also dispatches arg7 and deep) within a wait 55
+              'arg7-executed-4', // wait 80, but forked inside arg6, which is wait 55
+              'deep-executed-5', // wait 90, but forked inside arg6, which is wait 55
+            ],
+          ],
+        ],
+        task8: 'calledMethod-arg8-executed-7', // wait 110, nested within an instantaneous call
+      });
     });
   });
 
@@ -326,39 +544,6 @@ describe('SagaTester', () => {
 
       // Run the saga
       new SagaTester(throttledCall, config).run();
-    });
-    it('should handle the fork verb like a generator call', () => {
-      // Saga method for test
-      const method1 = mockGenerator('method1');
-
-      const context = { field: 'value' };
-
-      function* method2(arg) { yield put({ type: 'TYPE2', arg }); }
-      function* method3(arg) { yield put({ type: 'TYPE3', arg: `${arg}-${this.field}` }); }
-      function* method4(arg) { yield put({ type: 'TYPE4', arg: `${arg}-${this.field}` }); }
-
-      function* saga() {
-        yield fork(method1, 'arg1');
-        yield fork(method2, 'arg2');
-        yield fork([context, method3], 'arg3');
-        yield fork({ context, fn: method4 }, 'arg4');
-      }
-
-      // Saga Tester config
-      const config = {
-        expectedActions: [
-          { type: 'TYPE1', times: 0 },
-          { action: { type: 'TYPE2', arg: 'arg2' }, times: 1 },
-          { action: { type: 'TYPE3', arg: 'arg3-value' }, times: 1 },
-          { action: { type: 'TYPE4', arg: 'arg4-value' }, times: 1 },
-        ],
-        expectedGenerators: {
-          method1: [{ times: 1, params: ['arg1'] }],
-        },
-      };
-
-      // Run the saga
-      new SagaTester(saga, config).run();
     });
     it('should handle the retry verb by treating it as a CALL verb', () => {
       // Saga method for test
