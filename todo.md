@@ -39,7 +39,6 @@ TODO:
 --- 1.3.0
 
 TODO:
-- Implement concurrent delay effect
 - Implement pointed debugging that only logs certain task Ids or names (list of, or directly)
 - Implement awaitable calls
 - Implement spawn

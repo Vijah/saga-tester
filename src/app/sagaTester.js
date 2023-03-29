@@ -463,6 +463,11 @@ class SagaTester {
       value.payload.fn = args[2]; value.payload.args = remainingArgs;
       methodId = args[2].name;
       args = remainingArgs;
+    } else if (methodId === 'delayP') {
+      // handle delay effect
+      const result = this.makeNewTask({ result: undefined, wait: args[0], parentTask: options.currentTask, name: 'delay' });
+      options.currentTask.children.push(result);
+      return this.processJoin(generator, { payload: result }, options);
     }
     if (!Object.keys(this.callCalls).includes(methodId)) {
       throw new Error(`Received CALL verb with a method named ${methodId}, but the SagaTest was not configured to receive this CALL (step ${this.step})`);
@@ -650,7 +655,7 @@ class SagaTester {
     }
     // eslint-disable-next-line no-param-reassign
     delete task.interruption;
-    if ((task.result === undefined || task.result?.value === __INTERRUPT__) && !['waiting-children', 'race', 'all'].includes(task.wait)) {
+    if (task.generator !== undefined && (task.result === undefined || task.result?.value === __INTERRUPT__) && !['waiting-children', 'race', 'all'].includes(task.wait)) {
       // eslint-disable-next-line no-param-reassign
       task.result = this.processGenerator(task.generator, { task, parentTask: task.parentTask, isResuming, resumeValue });
     }
@@ -753,11 +758,10 @@ class SagaTester {
       t.children.length === 0 &&
       (
         selectedPriority === true ||
-        [false, 'race', 'all', 'generator', 'waiting-children'].includes(t.wait) ||
+        [0, false, 'race', 'all', 'generator', 'waiting-children'].includes(t.wait) ||
         (typeof selectedPriority === 'number' && typeof t.wait === 'number' && t.wait <= selectedPriority)
       )
     ));
-
     if (this.debug.unblock) {
       // eslint-disable-next-line no-console
       console.log(debugUnblock(tasksToRun, this.pendingTasks));

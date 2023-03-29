@@ -3,7 +3,7 @@
 A tester library for redux-saga, offering the following features:
 
 - Is order-independent (changing yield order does not break the test, making your tests less fragile).
-- Handles the following redux-saga/effects: put, putResolve, select, call, apply, all, race, retry, take, takeLatest, takeEvery, takeLeading, throttle, debounce, fork, cancel, cancelled, join.
+- Handles the following redux-saga/effects: put, putResolve, select, call, apply, all, race, retry, take, takeLatest, takeEvery, takeLeading, throttle, debounce, fork, delay, cancel, cancelled, join.
 - Runs the entire generator method from start to finish with one holistic config.
 - Is indirectly a generator function tester.
 
@@ -204,11 +204,11 @@ These features are specific to `fork` effects. These effects create a pseudo-tas
 
 Delaying the execution of `fork`ed tasks allows testing the behavior of sub-tasks which are, for instance, `cancel`led by the parent or itself. This allows support of `cancel` and `cancelled` effects.
 
-Furthermore, when inside a `join` containing a list of tasks, or within a `race` or `all` containing multiple joins, the pseudo-tasks are set to finish in the configured order. This also works for tasks which are forked inside another `fork` or a `call`.
+Furthermore, when inside a `join` containing a list of tasks, or within a `race` or `all` containing multiple joins, the pseudo-tasks are set to finish in the configured order. This also works for tasks which are forked inside another `fork` or a `call`. `delay` effects behaves like a pseudo-task set to wait for that amount.
 
-A current limitation is that `debounce` and `delay` all execute instantly regardless.
+A current limitation is that `debounce`, `takeLatest`, `takeEvery`, `takeLeading` and `throttle` do not behave concurrently; they will merely be executed instantly if a matching action is found.
 
-Example from the unit tests:
+Example from the unit tests (using `options.yieldDecreasesTimer`):
 
 ```js
 it('should treat fork as if creating a task with the given output, deferring its execution, and handling cancellation status', () => {
@@ -236,6 +236,7 @@ it('should treat fork as if creating a task with the given output, deferring its
         { params: ['arg4'], call: true, wait: 50 },
       ],
     },
+    options: { yieldDecreasesTimer: true },
   }).run()).toEqual([
     'arg1-executed-2', // Delayed by one; executed after task2
     'arg2-executed-1', // wait is false by default; executed instantly
@@ -249,18 +250,16 @@ it('should treat fork as if creating a task with the given output, deferring its
 
 ### State of the library
 
-SagaTester was developed and used in private, and needs were met under these circumstances.
-
 SagaTester was designed to be detached from as many dependencies as possible.
 The need for maintenance in this library is not large, including `pretty-format`, `jest-diff`, `lodash.isequal`
-and indirectly (and loosely), `redux-saga` and `reselect`.
+and indirectly (via matching string literals), `redux-saga` and `reselect`.
 
-While maintenance is not expected to be required, the package is simple and should be able to adjust.
-That said, the package is expected to remain in ES6, since it is a strictly test-side library.
+Tthe package is simple and should be able to adjust to external changes.
+The package is expected to remain in ES6 since it is a strictly test-side library.
 
 ### Possible future features 
 
-See [todo.md](todo.md)
+Not all `redux-saga` features are supported. See [todo.md](todo.md)
 
 Other ideas not in the todo list:
 
