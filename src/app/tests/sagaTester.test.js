@@ -27,6 +27,7 @@ import {
   triggerSagaWithAction,
   diffTwoObjects,
 } from '..';
+import PLACEHOLDER_ARGS from '../helpers/PLACEHOLDER_ARGS';
 
 describe('triggerSagaWithAction', () => {
   it('should trigger the given action in a saga object', () => {
@@ -201,9 +202,10 @@ describe('SagaTester', () => {
           { action: { type: 'TYPE', value: 'method2-arg4-notCancelled' }, times: 1 },
           { action: { type: 'TYPE', value: 'method2-arg5-notCancelled' }, times: 1 },
           { action: { type: 'TYPE', value: 'method2-arg6-cancelled' }, times: 1 },
+          { action: { type: 'TYPE', value: 'method2-arg7-cancelled' }, times: 1 },
         ],
         expectedCalls: {
-          mockCall: [{ times: 5, throw: 'whatever' }],
+          mockCall: [{ times: 6, throw: 'whatever' }],
         },
         expectedGenerators: {
           method1: [{ times: 1, params: ['arg1'], output: 'the-mocked-one' }],
@@ -253,6 +255,7 @@ describe('SagaTester', () => {
             { params: ['arg4'], call: true, wait: 50 },
           ],
         },
+        options: { yieldDecreasesTimer: true },
       }).run()).toEqual([
         'arg1-executed-2', // Delayed by one; executed after task2
         'arg2-executed-1', // wait is false by default; executed instantly
@@ -336,6 +339,231 @@ describe('SagaTester', () => {
         ],
         task8: 'calledMethod-arg8-executed-7', // wait 110, nested within an instantaneous call
       });
+    });
+    it('should end forked tasks in the correct order when they are yielded simultaneously inside a race effect', () => {
+      let executionOrder = 0;
+      function* method(arg) {
+        executionOrder += 1;
+        return `${arg}-executed-${executionOrder}`;
+      }
+      function* deeplyNestedMethod() {
+        const task = yield fork(method, 'deep');
+        return yield join(task);
+      }
+      function* methodNested(arg) {
+        const task1 = yield fork(method, arg);
+        const task2 = yield fork(method, 'arg7');
+        const callResult = yield call(deeplyNestedMethod);
+        const results = yield join([task1, task2]);
+        results.push(callResult);
+        return results;
+      }
+      function* calledMethod(arg) {
+        const task = yield fork(method, arg);
+        const taskResult = yield join([task]);
+        return `calledMethod-${taskResult[0]}`;
+      }
+      const mockMethodNested = mockGenerator(methodNested);
+
+      function* saga() {
+        const task1 = yield fork(method, 'arg1');
+        const task2 = yield fork(method, 'arg2');
+        const task3 = yield fork(method, 'arg3');
+        const task4 = yield fork(method, 'arg4');
+        const task5 = yield fork(method, 'arg5');
+        const task6 = yield fork(mockMethodNested, 'arg6');
+        const task8 = call(calledMethod, 'arg8');
+        const results = yield race({
+          task1: join(task1),
+          task2: join(task2),
+          sub: race([join([task3, task4]), race([join(task5), join(task6)])]),
+          task8,
+        });
+        return results;
+      }
+
+      expect(new SagaTester(saga, {
+        expectedGenerators: {
+          method: [
+            { params: ['arg1'], call: true, wait: 200 },
+            { params: ['arg2'], call: true, wait: true },
+            { params: ['arg3'], call: true, wait: 270 },
+            { params: ['arg4'], call: true, wait: 260 },
+            { params: ['arg5'], call: true, wait: 300 },
+            { params: ['arg6'], call: true, wait: 10 },
+            { params: ['arg7'], call: true, wait: 10 },
+            { params: ['arg8'], call: true, wait: 193 },
+            { params: ['deep'], call: true, wait: 290 },
+          ],
+          methodNested: [{ params: ['arg6'], call: true, wait: 10 }],
+        },
+        expectedCalls: {
+          calledMethod: [{ params: ['arg8'], call: true }],
+          deeplyNestedMethod: [{ call: true }],
+        },
+        options: { yieldDecreasesTimer: true },
+      }).run()).toEqual({
+        task1: 'arg1-executed-3', // wait 200
+        task2: undefined, // wait: true (aka after everything else)
+        sub: undefined,
+        // wait 270, wait 260
+        // wait 300
+        // 10, 20, and 290, meaining two tasks actually finish early, but the parent task never ends
+        task8: undefined, // 'calledMethod-arg8-executed-4'
+        // task8 ENDS AT THE SAME TIME AS TASK1, but task 1 is processed before, and root is resolved without it.
+        // This test documents this behavior; it would be difficult to modify the code so that tasks that end simultaneously are resolved simultaneously.
+        // In addition, this is not really realistic behavior, so we will leave it as is.
+      });
+    });
+    it('should end forked tasks in the correct order when they are yielded simultaneously inside a joint effect', () => {
+      let childExecutionOrder = 0;
+      let parentExecutionOrder = 0;
+      function* method(arg) {
+        childExecutionOrder += 1;
+        return `${arg}-childOrder-${childExecutionOrder}`;
+      }
+      function* methodNested(arg) {
+        const task1 = yield fork(method, `${arg}-1`);
+        const task2 = yield fork(method, `${arg}-2`);
+        const result = yield join([task1, task2]);
+        parentExecutionOrder += 1;
+        return result.map((r) => `${r}-parentOrder-${parentExecutionOrder}`);
+      }
+
+      function* saga() {
+        const task1 = yield fork(methodNested, 'arg1');
+        const task2 = yield fork(methodNested, 'arg2');
+        return yield join([task1, task2]);
+      }
+
+      expect(new SagaTester(saga, {
+        expectedGenerators: {
+          method: [
+            { params: ['arg1-1'], call: true, wait: 160 },
+            { params: ['arg1-2'], call: true, wait: true },
+            { params: ['arg2-1'], call: true, wait: 100 },
+            { params: ['arg2-2'], call: true, wait: 300 },
+          ],
+          methodNested: [
+            { params: ['arg1'], call: true, wait: false },
+            { params: ['arg2'], call: true, wait: 150 },
+          ],
+        },
+      }).run()).toEqual([
+        [ // The parent task is executed instantly, but resolves second since its inner tasks are slower
+          'arg1-1-childOrder-2-parentOrder-2',
+          'arg1-2-childOrder-4-parentOrder-2',
+        ],
+        [
+          'arg2-1-childOrder-1-parentOrder-1',
+          'arg2-2-childOrder-3-parentOrder-1',
+        ],
+      ]);
+    });
+    it('should complete tasks in the correct order even if they are awaited in separate tasks', () => {
+      let childExecutionOrder = 0;
+      function* method(arg) {
+        childExecutionOrder += 1;
+        return `${arg}-childOrder-${childExecutionOrder}`;
+      }
+      function* methodNested(arg, task1) {
+        const task2 = yield fork(method, `${arg}-sub`);
+        return yield join([task1, task2]);
+      }
+
+      function* saga() {
+        const task1Def = yield fork(method, 'arg1');
+        const task2Def = yield fork(method, 'arg2');
+        const task3Def = yield fork(method, 'arg3');
+
+        const task1 = yield fork(methodNested, 'arg1', task1Def);
+        const task2 = yield fork(methodNested, 'arg2', task2Def);
+        const task3 = yield fork(methodNested, 'arg3', task3Def);
+
+        return yield join([task1, task2, task3]);
+      }
+
+      expect(new SagaTester(saga, {
+        expectedGenerators: {
+          method: [
+            { params: ['arg1'], call: true, wait: false },
+            { params: ['arg2'], call: true, wait: 100 },
+            { params: ['arg3'], call: true, wait: true },
+            { params: ['arg1-sub'], call: true, wait: true },
+            { params: ['arg2-sub'], call: true, wait: 200 },
+            { params: ['arg3-sub'], call: true, wait: false },
+          ],
+          methodNested: [
+            { params: ['arg1', PLACEHOLDER_ARGS.TYPE('object')], call: true, wait: 50 },
+            { params: ['arg2', PLACEHOLDER_ARGS.TASK], call: true, wait: 50 },
+            { params: ['arg3', PLACEHOLDER_ARGS.FN((value) => value.id === 3)], call: true, wait: 50 },
+          ],
+        },
+      }).run()).toEqual([
+        [
+          'arg1-childOrder-1',
+          'arg1-sub-childOrder-6',
+        ],
+        [
+          'arg2-childOrder-3',
+          'arg2-sub-childOrder-4',
+        ],
+        [
+          'arg3-childOrder-5',
+          'arg3-sub-childOrder-2',
+        ],
+      ]);
+    });
+    it('should complete tasks in the correct order even if a task is being awaited simultaneously in multiple places', () => {
+      let childExecutionOrder = 0;
+      function* method(arg) {
+        childExecutionOrder += 1;
+        return `${arg}-childOrder-${childExecutionOrder}`;
+      }
+      function* methodNested(arg, task1) {
+        const task2 = yield fork(method, `${arg}-sub`);
+        return yield join([task1, task2]);
+      }
+
+      function* saga() {
+        const mainTask = yield fork(method, 'main');
+
+        const task1 = yield fork(methodNested, 'arg1', mainTask);
+        const task2 = yield fork(methodNested, 'arg2', mainTask);
+        const task3 = yield fork(methodNested, 'arg3', mainTask);
+
+        return yield join([task1, task2, task3]);
+      }
+
+      expect(new SagaTester(saga, {
+        expectedGenerators: {
+          method: [
+            { params: ['main'], call: true, wait: true },
+            { params: ['arg1-sub'], call: true, wait: true },
+            { params: ['arg2-sub'], call: true, wait: 25 },
+            { params: ['arg3-sub'], call: true, wait: false },
+          ],
+          methodNested: [
+            { params: ['arg1', PLACEHOLDER_ARGS.ANY], call: true, wait: 50 },
+            { params: ['arg2', PLACEHOLDER_ARGS.ANY], call: true, wait: 50 },
+            { params: ['arg3', PLACEHOLDER_ARGS.ANY], call: true, wait: 50 },
+          ],
+        },
+        options: { yieldDecreasesTimer: false },
+      }).run()).toEqual([
+        [
+          'main-childOrder-3',
+          'arg1-sub-childOrder-4',
+        ],
+        [
+          'main-childOrder-3',
+          'arg2-sub-childOrder-2',
+        ],
+        [
+          'main-childOrder-3',
+          'arg3-sub-childOrder-1',
+        ],
+      ]);
     });
   });
 

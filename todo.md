@@ -39,13 +39,9 @@ TODO:
 --- 1.3.0
 
 TODO:
-- Test debug methods
-- Test concurrent race
-- Test with concurrent joints
-- Test with a task that is forwarded inside another task
-- Test with a task that is awaited in two different places
 - Implement concurrent delay effect
 - Implement pointed debugging that only logs certain task Ids or names (list of, or directly)
+- Implement awaitable calls
 - Implement spawn
 - Implement "waitForSpawned" option
-- Update README with new features.
+- Update README with new features (esp. concurrency behavior, options section and debug section).

@@ -6,6 +6,7 @@ import debugDeadlock from './helpers/debugDeadlock';
 import debugUnblock from './helpers/debugUnblock';
 import INTERRUPTION_TYPES from './helpers/INTERRUPTION_TYPES';
 import makeInterruption from './helpers/makeInterruption';
+import paramsMatch from './helpers/paramsMatch';
 import sortTaskPriority from './helpers/sortTaskPriority';
 import __INTERRUPT__ from './helpers/__INTERRUPT__';
 
@@ -113,7 +114,7 @@ function incrementCallCounter(configObject, args) {
  * @param {bool} shouldAssert True by default. If true, asserts when certain expected calls have not been made by the end of the run.
  */
 class SagaTester {
-  constructor(saga, { selectorConfig = {}, expectedActions = [], expectedCalls = {}, expectedGenerators = {}, effectiveActions = [], debug = {} } = {}, shouldAssert = true) {
+  constructor(saga, { selectorConfig = {}, expectedActions = [], expectedCalls = {}, expectedGenerators = {}, effectiveActions = [], debug = {}, options = {} } = {}, shouldAssert = true) {
     const err = (message) => `Error in the configuration of SagaTester: ${message}`;
     const validConfig = (config) => !Array.isArray(config) && typeof config === 'object' && Object.keys(config).every((key) => Array.isArray(config[key]));
     const validActions = (config) => Array.isArray(config) && config.every((el) => el.type !== undefined || el.action !== undefined);
@@ -124,6 +125,8 @@ class SagaTester {
     assert(validConfig(expectedGenerators), err('expectedGenerators must be an object containing arrays'));
     assert(validActions(expectedActions), err('expectedActions must be an array of object containing either an attribute "type" or "action"'));
     assert(validActions(effectiveActions), err('effectiveActions must be an array of object containing either an attribute "type" or "action"'));
+
+    const { stepLimit = 1000, yieldDecreasesTimer = false } = options;
 
     this.saga = saga;
     this.selectorConfig = selectorConfig;
@@ -140,6 +143,8 @@ class SagaTester {
     this.effectiveActions = effectiveActions;
     this.tasksPending = false;
     this.debug = debug;
+    this.stepLimit = stepLimit;
+    this.yieldDecreasesTimer = yieldDecreasesTimer;
   }
 
   /**
@@ -300,7 +305,7 @@ class SagaTester {
           const result = this.handleInterruption(currentTask);
           nextResult = generator.next(result);
         }
-        this.step += 1;
+        this.incrementStep();
       }
     } catch (e) {
       this.taskStack.push(`id: ${currentTask.id}, generator: ${currentTask.id === 0 ? 'root' : currentTask.generator?.name}`);
@@ -409,10 +414,10 @@ class SagaTester {
 
     const wrappedTaskList = Array.isArray(payload) ? [...payload] : [payload];
     const results = [];
-    if (this.shouldInterruptJoin(wrappedTaskList)) {
+    if (wrappedTaskList.some((t) => ![false, undefined].includes(t.wait) || t.interruption || t.children.length > 0)) {
       const taskList = Array.isArray(payload) ? [...payload] : payload;
       wrappedTaskList.forEach((t) => {
-        if (!currentTask.children.includes(t)) {
+        if (!currentTask.children.includes(t) && this.pendingTasks.includes(t)) {
           // For tasks delegated inside sub-tasks (e.g. a join inside a race/all inside another race/all)
           currentTask.children.push(t);
         }
@@ -463,7 +468,7 @@ class SagaTester {
       throw new Error(`Received CALL verb with a method named ${methodId}, but the SagaTest was not configured to receive this CALL (step ${this.step})`);
     }
 
-    const matchedCalls = this.callCalls[methodId].filter((config) => config.params === undefined || isEqual(config.params, args));
+    const matchedCalls = this.callCalls[methodId].filter((config) => paramsMatch(config.params, args));
     if (matchedCalls.length === 0) {
       const expectedArgs = this.callCalls[methodId].map((el) => diffTwoObjects(el.params, args)).join('\n\n');
 
@@ -587,7 +592,7 @@ class SagaTester {
     if (this.generatorCalls == null || this.generatorCalls[name] == null) {
       throw new Error(`Received mocked generator call with name ${name} and args ${args}, but no such generator was defined in the expectedGenerators config`);
     }
-    const matchedCalls = this.generatorCalls[name].filter((config) => config.params === undefined || isEqual(config.params, args));
+    const matchedCalls = this.generatorCalls[name].filter((config) => paramsMatch(config.params, args));
     if (matchedCalls.length === 0) {
       const expectedArgs = this.generatorCalls[name].map((el) => diffTwoObjects(el.params, args)).join('\n\n');
 
@@ -655,13 +660,6 @@ class SagaTester {
     }
   };
 
-  shouldInterruptJoin = (tasks) => {
-    if (this.tasksPending && tasks.some((task) => task.wait)) {
-      return true;
-    }
-    return false;
-  };
-
   executeFn = ({ context, fn, args }, { task: currentTask, parentTask, name } = {}) => {
     let result;
     let method = fn;
@@ -678,7 +676,7 @@ class SagaTester {
   };
 
   countDownTasks = (options) => {
-    if (options.noNext) {
+    if (options.noNext || !this.yieldDecreasesTimer) {
       return;
     }
     let ran = false;
@@ -742,9 +740,12 @@ class SagaTester {
   // Run the fastest task in the waiting queue. If there are equal-speed tasks, they are run together (synchronously one after the other).
   // If the ran tasks unlock parent tasks that were waiting for these tasks to finish, those tasks are also run; this last part is recursive.
   unblockLeastPriorityTaskAndResumeGenerators() {
+    this.incrementStep();
     sortTaskPriority(this.pendingTasks);
     const fastestTask = this.pendingTasks.find((t) => t.children.length === 0);
-    if (!fastestTask) { return; }
+    if (!fastestTask) {
+      debugDeadlock(this.pendingTasks);
+    }
     const selectedPriority = [0, 'generator', 'race', 'all', 'waiting-children'].includes(fastestTask.wait) ? false : fastestTask.wait;
 
     // We run all tasks with equivalent weights "simultaneously"
@@ -756,10 +757,6 @@ class SagaTester {
         (typeof selectedPriority === 'number' && typeof t.wait === 'number' && t.wait <= selectedPriority)
       )
     ));
-
-    if (tasksToRun.length === 0) {
-      debugDeadlock(this.pendingTasks);
-    }
 
     if (this.debug.unblock) {
       // eslint-disable-next-line no-console
@@ -788,7 +785,7 @@ class SagaTester {
       const ranChildren = p.children.filter((child) => { if (finishedTasks.includes(child)) { return true; } remainingChildren.push(child); return false; });
       // eslint-disable-next-line no-param-reassign
       p.children = remainingChildren;
-      if (ranChildren.length > 0) {
+      if (ranChildren.length > 0 && p.interruption) {
         const { kind, pending } = p.interruption;
         if ([INTERRUPTION_TYPES.RACE, INTERRUPTION_TYPES.ALL].includes(kind)) {
           // pending is an object or list of interruptions, and if race:one/all:all of they keys/indexes are not interrupted anymore, it must be run.
@@ -833,7 +830,7 @@ class SagaTester {
         } else if (kind === INTERRUPTION_TYPES.JOIN) {
           // pending is a single task, or a list of tasks. If all tasks are not interrupted anymore, it must be run.
           if (Array.isArray(pending)) {
-            if (Array.isArray(pending) && pending.every((t) => t.interruption === undefined)) {
+            if (Array.isArray(pending) && pending.every((t) => t.interruption === undefined && [undefined, false].includes(t.wait))) {
               tasksToRun.push({ task: p, value: pending.map((t) => t.result) });
             }
           } else if (pending.interruption === undefined) {
@@ -873,6 +870,13 @@ class SagaTester {
 
   cleanupRanTasks() {
     this.pendingTasks = this.pendingTasks.filter((t) => t.wait !== false || t.children.length !== 0);
+  }
+
+  incrementStep() {
+    this.step += 1;
+    if (this.step >= this.stepLimit) {
+      debugDeadlock(this.pendingTasks, `Saga reached step ${this.stepLimit}, you are probably looking at an infinite loop somewhere. To alter this limit, provide options.stepLimit to sagaTester.\r\n`);
+    }
   }
 }
 

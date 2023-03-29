@@ -15,6 +15,7 @@ class SagaTester<Saga> {
       expectedGenerators?: { [P: string]: CallType[] },
       effectiveActions?: Action<any>[],
       debug?: { unblock?: boolean, bubble?: boolean },
+      options?: { stepLimit?: number, yieldDecreasesTimer?: boolean },
     },
     shouldAssert?: boolean,
   );

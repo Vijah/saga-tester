@@ -1,4 +1,4 @@
-const debugDeadlock = (pendingTasks) => {
+const debugDeadlock = (pendingTasks, prefix = 'Deadlock: ') => {
   const simplifiedPendingTasks = pendingTasks.map((p) => ({
     ...p,
     generator: undefined,
@@ -17,7 +17,7 @@ const debugDeadlock = (pendingTasks) => {
     },
     latestValue: p.latestValue?.type,
   }));
-  throw new Error(`Deadlock: ${pendingTasks.length} tasks did not finish. Remaining tasks:\n\n${JSON.stringify(simplifiedPendingTasks, undefined, 2).replace(/@@\\n/g, '\n')}`);
+  throw new Error(`${prefix}${pendingTasks.length} tasks did not finish. Remaining tasks:\n\n${JSON.stringify(simplifiedPendingTasks, undefined, 2).replace(/@@\\n/g, '\n')}`);
 };
 
 export default debugDeadlock;

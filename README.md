@@ -166,6 +166,21 @@ Only one of `output`, `throw` or `call: true` should ever be provided.
 Note that by default, if this is not specified, the first argument of the "run" method is considered to be a contextual action,
 unless the first argument is not an action.
 
+### Partial param matching
+
+When providing a `params` array to match, you can use `PLACEHOLDER_ARGS` to specify a logic for matching different from equality.
+
+```js
+import { PLACEHOLDER_ARGS } from 'saga-tester';
+...
+  expectedCalls: { foo: [{ times: 1, params: [PLACEHOLDER_ARGS.ANY, PLACEHOLDER_ARGS.TASK, PLACEHOLDER_ARGS.TYPE('number')] }] },
+```
+
+- `PLACEHOLDER_ARGS.ANY` inside a `params` array to indicate an argument that is not important.
+- `PLACEHOLDER_ARGS.TASK` inside a `params` array to indicate a task object of any content.
+- `PLACEHOLDER_ARGS.TYPE(type)` inside a `params` array to indicate a value of `typeof type`.
+- `PLACEHOLDER_ARGS.FN((value) => boolean)` inside a `params` array to indicate a value for which the method returns true.
+
 ### Run without failing
 
 In rare cases, you might want to run the saga without causing failures.

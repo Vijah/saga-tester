@@ -7,3 +7,10 @@
 - Fix const typescript boolean on `call` property.
 - Add the `config.debug.unblock` option to log the dependency tree when simulating concurrent tasks waiting after each other. Occurs when the root SagaTester is pending (usually after a `race`, `all`, or `join`), and SagaTester must pick the fastest task to run. Will usually not happen if all tasks are ran immediately (`wait: false`)
 - Add the `config.debug.bubble` option to log the dependency tree (including partial values) when a resolved pending task "bubbles up" the dependency tree, potentially causing other tasks to become unblocked.
+- Add the `config.options.stepLimit` option to detect infinite loops faster or slower
+- Add the `config.options.yieldDecreasesTimer` option, which is set to `false` by default to avoid confusing behavior. (This is technically a breaking change if your tests relied on the decreasing step count). If set to `true`, each yield action results in the timer of active tasks to decrease by 1.
+- Add `saga-tester/PLACEHOLDER_ARGS`.
+  - Provide `PLACEHOLDER_ARGS.ANY` inside a `params` array to indicate an argument that is not important.
+  - Provide `PLACEHOLDER_ARGS.TASK` inside a `params` array to indicate a task object of any content.
+  - Provide `PLACEHOLDER_ARGS.TYPE(type)` inside a `params` array to indicate a value of `typeof type`.
+  - Provide `PLACEHOLDER_ARGS.FN((value) => boolean)` inside a `params` array to indicate a value for which the method returns true.
