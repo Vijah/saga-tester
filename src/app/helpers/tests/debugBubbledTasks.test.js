@@ -90,7 +90,6 @@ describe('debugBubbledTasks', () => {
     expect(logMock).toHaveBeenCalledTimes(14);
 
     // first log, tree is pretty big since most tasks are blocked
-    logMock.mock.calls[0][0].replace(/\r\n/g, '\n');
     expect(logMock.mock.calls[0][0].replace(/\r\n/g, '\n')).toEqual(`-- TASKS TO BUBBLE:
 method              id: 1  wait: false    value: arg1-executed-1
 -- TREE:

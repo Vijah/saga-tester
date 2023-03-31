@@ -90,7 +90,6 @@ describe('debugUnblock', () => {
     expect(logMock).toHaveBeenCalledTimes(12);
 
     // first log, tree is pretty big since most tasks are blocked
-    logMock.mock.calls[0][0].replace(/\r\n/g, '\n');
     expect(logMock.mock.calls[0][0].replace(/\r\n/g, '\n')).toEqual(`-- UNBLOCKING:
 method              id: 1  wait: 43       
 -- TREE:

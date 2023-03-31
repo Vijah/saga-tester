@@ -3,6 +3,7 @@ import isEqual from 'lodash.isequal';
 import diffTwoObjects from './diffTwoObjects';
 import debugBubbledTasks from './helpers/debugBubbledTasks';
 import debugDeadlock from './helpers/debugDeadlock';
+import debugShouldApply from './helpers/debugShouldApply';
 import debugUnblock from './helpers/debugUnblock';
 import INTERRUPTION_TYPES from './helpers/INTERRUPTION_TYPES';
 import makeInterruption from './helpers/makeInterruption';
@@ -300,7 +301,7 @@ class SagaTester {
             if (nextResult.origin === currentTask.id) {
               return nextResult;
             }
-            return makeInterruption(currentTask, undefined, INTERRUPTION_TYPES.GENERATOR, nextResult.dependencies);
+            return makeInterruption(currentTask, undefined, INTERRUPTION_TYPES.GENERATOR, nextResult.dependencies, this.debug?.interrupt);
           }
           const result = this.handleInterruption(currentTask);
           nextResult = generator.next(result);
@@ -422,7 +423,7 @@ class SagaTester {
           currentTask.children.push(t);
         }
       });
-      return makeInterruption(currentTask, taskList, INTERRUPTION_TYPES.JOIN, Array.isArray(payload) ? payload.map((t) => t.id) : payload.id);
+      return makeInterruption(currentTask, taskList, INTERRUPTION_TYPES.JOIN, Array.isArray(payload) ? payload.map((t) => t.id) : payload.id, this.debug?.interrupt);
     }
     const sorted = sortTaskPriority([...wrappedTaskList]);
     sorted.forEach((task) => { this.runTask(task); });
@@ -577,10 +578,10 @@ class SagaTester {
     const interruptionType = value.type === 'RACE' ? INTERRUPTION_TYPES.RACE : INTERRUPTION_TYPES.ALL;
     if (Array.isArray(results)) {
       if (results[conditionType]((r) => r?.value === __INTERRUPT__)) {
-        return makeInterruption(currentTask, results, interruptionType, currentTask.id);
+        return makeInterruption(currentTask, results, interruptionType, currentTask.id, this.debug?.interrupt);
       }
     } else if (Object.keys(results)[conditionType]((key) => results[key]?.value === __INTERRUPT__)) {
-      return makeInterruption(currentTask, results, interruptionType, currentTask.id);
+      return makeInterruption(currentTask, results, interruptionType, currentTask.id, this.debug?.interrupt);
     }
     // Take out unfinished tasks in case of a partially completed race
     Object.keys(results).forEach((key) => { const v = results[key]; results[key] = v?.value === __INTERRUPT__ ? undefined : v; });
@@ -710,7 +711,7 @@ class SagaTester {
   nextOrReturn(generator, value, options) {
     const { noNext, currentTask } = options;
     if (value?.value === __INTERRUPT__) {
-      return makeInterruption(currentTask, undefined, INTERRUPTION_TYPES.GENERATOR, value.origin);
+      return makeInterruption(currentTask, undefined, INTERRUPTION_TYPES.GENERATOR, value.origin, this.debug?.interrupt);
     }
     if (noNext) {
       return value;
@@ -762,7 +763,7 @@ class SagaTester {
         (typeof selectedPriority === 'number' && typeof t.wait === 'number' && t.wait <= selectedPriority)
       )
     ));
-    if (this.debug.unblock) {
+    if (debugShouldApply(tasksToRun, this.debug.unblock)) {
       // eslint-disable-next-line no-console
       console.log(debugUnblock(tasksToRun, this.pendingTasks));
     }
@@ -780,7 +781,7 @@ class SagaTester {
 
   bubbleUpFinishedTask(finishedTasks) {
     const tasksToRun = [];
-    if (this.debug.bubble) {
+    if (debugShouldApply(finishedTasks, this.debug.bubble)) {
       // eslint-disable-next-line no-console
       console.log(debugBubbledTasks(finishedTasks, this.pendingTasks));
     }

@@ -14,6 +14,7 @@ TODO:
 TODO:
 - cleanup api by merging expectedGenerators and expectedCalls into one config.
 - make 'expectedCalls' a list of objects with a name property, so it better resembles the expectedAction config (less confusing)
+- Transpile to ECMA 5 so the project runs regardless of the environment. Move the untransformed code inside an /es/ subfolder in the build so the user can choose.
 
 --- 1.4.0
 
@@ -39,7 +40,6 @@ TODO:
 --- 1.3.0
 
 TODO:
-- Implement pointed debugging that only logs certain task Ids or names (list of, or directly)
 - Implement awaitable calls
 - Implement spawn
 - Implement "waitForSpawned" option

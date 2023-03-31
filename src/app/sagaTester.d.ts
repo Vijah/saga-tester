@@ -5,6 +5,8 @@ type CallType = { times?: number, params: any[], output: any } |
   { times?: number, params: any[], throw: any } |
   { times?: number, params: any[], call: boolean, wait?: boolean | number };
 
+type DebugType = number | string | boolean | (number | string)[];
+
 class SagaTester<Saga> {
   constructor(
     saga: Saga,
@@ -14,7 +16,7 @@ class SagaTester<Saga> {
       expectedCalls?: { [P: string]: CallType[] },
       expectedGenerators?: { [P: string]: CallType[] },
       effectiveActions?: Action<any>[],
-      debug?: { unblock?: boolean, bubble?: boolean },
+      debug?: { unblock?: DebugType, bubble?: DebugType, interrupt?: DebugType },
       options?: { stepLimit?: number, yieldDecreasesTimer?: boolean },
     },
     shouldAssert?: boolean,

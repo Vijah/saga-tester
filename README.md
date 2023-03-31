@@ -246,6 +246,16 @@ it('should treat fork as if creating a task with the given output, deferring its
 });
 ```
 
+## Debugging
+
+The `config` of the tester can contain a property `debug` which has options determining what to log.
+
+- `unblock` will log when executing the top priority call.
+- `bubble` will log when a task is finished and it needs to be "bubbled up" the dependency tree to run other tasks which depended on it.
+- `interrupt` will log when a task cannot be run immediately by the tester.
+
+The value of each debug property can be: `true`, `false`, a `number` representing the task id (which depends on the order in which it was created - this order is deterministic, so it will always be the same), a `string` representing the name or method associated with the task, or a list of `string` or `number` if several tasks are to be monitored.
+
 ## Roadmap
 
 ### State of the library
