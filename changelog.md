@@ -15,3 +15,7 @@
   - Provide `PLACEHOLDER_ARGS.TASK` inside a `params` array to indicate a task object of any content.
   - Provide `PLACEHOLDER_ARGS.TYPE(type)` inside a `params` array to indicate a value of `typeof type`.
   - Provide `PLACEHOLDER_ARGS.FN((value) => boolean)` inside a `params` array to indicate a value for which the method returns true.
+- Implement awaitable calls
+- Fix cancellation not bubbling down parent ownership.
+- Fix cancellation not using "return" and therefore not correctly branching into "finally" statements.
+

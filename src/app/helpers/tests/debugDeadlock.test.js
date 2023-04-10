@@ -75,32 +75,53 @@ describe('debugDeadlock', () => {
     const expected = `Error was thrown while running SagaTester (step 500).
 
 Error: Saga reached step 500, you are probably looking at an infinite loop somewhere. To alter this limit, provide options.stepLimit to sagaTester.
-14 tasks did not finish. Remaining tasks:
+15 tasks did not finish. Remaining tasks:
 
 [
   {
     "@@redux-saga/TASK": true,
     "isCancelled": false,
     "children": [
-      3,
-      4,
-      8
+      11
     ],
-    "id": 7,
-    "wait": "all",
-    "parentTask": 0,
+    "id": 10,
+    "wait": "generator",
+    "parentTask": 7,
+    "name": "calledMethod",
+    "started": true,
+    "latestValue": "JOIN",
     "interruption": {
-      "kind": "@@sagaTester__all__",
-      "pending": "0=>undefined
-1=>undefined"
+      "kind": "@@sagaTester__join__",
+      "pending": "0=>id:11,interrupted:false"
     }
   },
   {
     "@@redux-saga/TASK": true,
     "isCancelled": false,
     "children": [
-      5,
-      6
+      1,
+      2,
+      8,
+      10
+    ],
+    "id": 7,
+    "wait": "all",
+    "parentTask": 0,
+    "interruption": {
+      "kind": "@@sagaTester__all__",
+      "pending": "task1=>undefined
+task2=>undefined
+sub=>undefined
+task8=>undefined"
+    }
+  },
+  {
+    "@@redux-saga/TASK": true,
+    "isCancelled": false,
+    "children": [
+      3,
+      4,
+      9
     ],
     "id": 8,
     "wait": "all",
@@ -115,41 +136,31 @@ Error: Saga reached step 500, you are probably looking at an infinite loop somew
     "@@redux-saga/TASK": true,
     "isCancelled": false,
     "children": [
-      1,
-      2,
-      3,
-      4,
       5,
-      6,
-      7,
-      9
+      6
     ],
-    "id": 0,
-    "wait": "generator",
-    "name": "root",
-    "latestValue": "ALL",
+    "id": 9,
+    "wait": "all",
+    "parentTask": 8,
     "interruption": {
       "kind": "@@sagaTester__all__",
-      "pending": "task1=>undefined
-task2=>undefined
-sub=>undefined
-task8=>undefined"
+      "pending": "0=>undefined
+1=>undefined"
     }
   },
   {
     "@@redux-saga/TASK": true,
     "isCancelled": false,
     "children": [
-      10
+      7
     ],
-    "id": 9,
+    "id": 0,
     "wait": "generator",
-    "parentTask": 0,
-    "name": "calledMethod",
-    "latestValue": "JOIN",
+    "name": "root",
+    "started": true,
+    "latestValue": "ALL",
     "interruption": {
-      "kind": "@@sagaTester__join__",
-      "pending": "0=>id:10,interrupted:false"
+      "kind": "@@sagaTester__generator__"
     }
   },
   {
@@ -160,20 +171,18 @@ task8=>undefined"
     "wait": 0,
     "name": "method",
     "parentTask": 0,
+    "started": true,
     "latestValue": "PUT"
   },
   {
     "@@redux-saga/TASK": true,
     "isCancelled": false,
-    "children": [
-      11,
-      12,
-      13
-    ],
+    "children": [],
     "id": 6,
     "wait": 0,
     "name": "methodNested",
     "parentTask": 0,
+    "started": true,
     "latestValue": "CALL"
   },
   {
@@ -184,6 +193,7 @@ task8=>undefined"
     "wait": 0,
     "name": "method",
     "parentTask": 0,
+    "started": true,
     "latestValue": "PUT"
   },
   {
@@ -194,6 +204,7 @@ task8=>undefined"
     "wait": 0,
     "name": "method",
     "parentTask": 0,
+    "started": true,
     "latestValue": "PUT"
   },
   {
@@ -204,16 +215,18 @@ task8=>undefined"
     "wait": 0,
     "name": "method",
     "parentTask": 0,
+    "started": true,
     "latestValue": "PUT"
   },
   {
     "@@redux-saga/TASK": true,
     "isCancelled": false,
     "children": [],
-    "id": 10,
+    "id": 11,
     "wait": 0,
     "name": "method",
-    "parentTask": 9,
+    "parentTask": 10,
+    "started": true,
     "latestValue": "PUT"
   },
   {
@@ -229,20 +242,11 @@ task8=>undefined"
     "@@redux-saga/TASK": true,
     "isCancelled": false,
     "children": [],
-    "id": 11,
-    "wait": 0,
-    "name": "method",
-    "parentTask": 6,
-    "latestValue": "PUT"
-  },
-  {
-    "@@redux-saga/TASK": true,
-    "isCancelled": false,
-    "children": [],
     "id": 12,
     "wait": 0,
     "name": "method",
     "parentTask": 6,
+    "started": true,
     "latestValue": "PUT"
   },
   {
@@ -250,9 +254,21 @@ task8=>undefined"
     "isCancelled": false,
     "children": [],
     "id": 13,
+    "wait": 0,
+    "name": "method",
+    "parentTask": 6,
+    "started": true,
+    "latestValue": "PUT"
+  },
+  {
+    "@@redux-saga/TASK": true,
+    "isCancelled": false,
+    "children": [],
+    "id": 14,
     "wait": "generator",
     "parentTask": 6,
     "name": "deeplyNestedMethodWithVeryLongName",
+    "started": true,
     "latestValue": "FORK"
   }
 ]`.replace(/\r\n/g, '\n');

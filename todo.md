@@ -40,7 +40,6 @@ TODO:
 --- 1.3.0
 
 TODO:
-- Implement awaitable calls
 - Implement spawn
 - Implement "waitForSpawned" option
 - Update README with new features (esp. concurrency behavior, options section and debug section).
