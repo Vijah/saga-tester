@@ -93,48 +93,48 @@ describe('debugUnblock', () => {
     expect(logMock.mock.calls[0][0].replace(/\r\n/g, '\n')).toEqual(`-- UNBLOCKING:
 method              id: 1  wait: 43       
 -- TREE:
-calledMethod        id: 10 wait: generator Children: [11]
-                    id: 7  wait: all       Children: [1,2,8,10]
-                    id: 8  wait: all       Children: [3,4,9]
-                    id: 9  wait: all       Children: [5,6]
-root                id: 0  wait: generator Children: [7]
-method              id: 1  wait: 43        Children: []
-methodNested        id: 6  wait: 53        Children: []
-method              id: 4  wait: 56        Children: []
-method              id: 3  wait: 65        Children: []
-method              id: 5  wait: 97        Children: []
-method              id: 11 wait: 110       Children: []
-method              id: 2  wait: true      Children: []
+calledMethod        id: 10 wait: generator Dependencies: [11]
+                    id: 7  wait: all       Dependencies: [1,2,8,10]
+                    id: 8  wait: all       Dependencies: [3,4,9]
+                    id: 9  wait: all       Dependencies: [5,6]
+root                id: 0  wait: generator Dependencies: [7]
+method              id: 1  wait: 43        Dependencies: []
+methodNested        id: 6  wait: 53        Dependencies: []
+method              id: 4  wait: 56        Dependencies: []
+method              id: 3  wait: 65        Dependencies: []
+method              id: 5  wait: 97        Dependencies: []
+method              id: 11 wait: 110       Dependencies: []
+method              id: 2  wait: true      Dependencies: []
 `.replace(/\r\n/g, '\n'));
 
     // Middle log
     expect(logMock.mock.calls[2][0].replace(/\r\n/g, '\n')).toEqual(`-- UNBLOCKING:
 method              id: 4  wait: 51       
 -- TREE:
-calledMethod        id: 10 wait: generator Children: [11]
-deeplyNestedMethodWithVeryLongNameid: 14 wait: generator Children: [15]
-                    id: 7  wait: all       Children: [2,8,10]
-                    id: 8  wait: all       Children: [3,4,9]
-                    id: 9  wait: all       Children: [5,6]
-root                id: 0  wait: generator Children: [7]
-methodNested        id: 6  wait: 48        Children: [14]
-method              id: 4  wait: 51        Children: []
-method              id: 3  wait: 60        Children: []
-method              id: 13 wait: 78        Children: []
-method              id: 15 wait: 90        Children: []
-method              id: 5  wait: 92        Children: []
-method              id: 11 wait: 105       Children: []
-method              id: 12 wait: 197       Children: []
-method              id: 2  wait: true      Children: []
+calledMethod        id: 10 wait: generator Dependencies: [11]
+deeplyNestedMethodWithVeryLongNameid: 14 wait: generator Dependencies: [15]
+                    id: 7  wait: all       Dependencies: [2,8,10]
+                    id: 8  wait: all       Dependencies: [3,4,9]
+                    id: 9  wait: all       Dependencies: [5,6]
+root                id: 0  wait: generator Dependencies: [7]
+methodNested        id: 6  wait: 48        Dependencies: [14]
+method              id: 4  wait: 51        Dependencies: []
+method              id: 3  wait: 60        Dependencies: []
+method              id: 13 wait: 78        Dependencies: []
+method              id: 15 wait: 90        Dependencies: []
+method              id: 5  wait: 92        Dependencies: []
+method              id: 11 wait: 105       Dependencies: []
+method              id: 12 wait: 197       Dependencies: []
+method              id: 2  wait: true      Dependencies: []
 `.replace(/\r\n/g, '\n'));
 
     // Last log: most stuff is resolved
     expect(logMock.mock.calls[11][0].replace(/\r\n/g, '\n')).toEqual(`-- UNBLOCKING:
 method              id: 2  wait: true     
 -- TREE:
-root                id: 0  wait: generator Children: [7]
-                    id: 7  wait: all       Children: [2]
-method              id: 2  wait: true      Children: []
+root                id: 0  wait: generator Dependencies: [7]
+                    id: 7  wait: all       Dependencies: [2]
+method              id: 2  wait: true      Dependencies: []
 `.replace(/\r\n/g, '\n'));
     logMock.mockRestore();
   });

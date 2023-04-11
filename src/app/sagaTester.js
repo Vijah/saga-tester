@@ -5,6 +5,7 @@ import debugBubbledTasks from './helpers/debugBubbledTasks';
 import debugDeadlock from './helpers/debugDeadlock';
 import debugShouldApply from './helpers/debugShouldApply';
 import debugUnblock from './helpers/debugUnblock';
+import getDependencies from './helpers/getDependencies';
 import INTERRUPTION_TYPES from './helpers/INTERRUPTION_TYPES';
 import makeInterruption from './helpers/makeInterruption';
 import paramsMatch from './helpers/paramsMatch';
@@ -304,7 +305,6 @@ class SagaTester {
         if (nextResult.value === __INTERRUPT__) {
           if (currentTask.id !== 0) {
             if (nextResult.origin === currentTask.id) {
-              this.addMissingDependencies(nextResult, currentTask);
               return nextResult;
             }
             return makeInterruption(currentTask, undefined, INTERRUPTION_TYPES.GENERATOR, nextResult.dependencies, this.debug?.interrupt);
@@ -323,12 +323,12 @@ class SagaTester {
     }
 
     if (currentTask.generator === generator) {
-      this.pendingTasks.forEach((t) => {
-        if (t.parentTask === currentTask && !currentTask.children.includes(t)) {
-          currentTask.children.push(t);
-        }
-      });
-      currentTask.wait = currentTask.children.length === 0 ? false : 'waiting-children';
+      const dependencies = this.pendingTasks.filter((p) => p.parentTask?.id === currentTask.id).map((p) => p.id);
+      if (dependencies.length === 0) {
+        currentTask.wait = false;
+      } else {
+        currentTask.wait = 'waiting-children';
+      }
       currentTask.result = nextResult.value;
       if (currentTask.wait === false && this.pendingTasks.includes(currentTask)) {
         this.cleanupRanTasks();
@@ -336,8 +336,7 @@ class SagaTester {
       if (currentTask.id === 0 && currentTask.wait) {
         this.handleInterruption(currentTask);
       } else if (currentTask.wait) {
-        const dependencies = currentTask.children.map((c) => c.id).filter((c) => this.pendingTasks.some((t) => t.id === c.id));
-        return makeInterruption(currentTask, undefined, INTERRUPTION_TYPES.GENERATOR, dependencies, this.debug?.interrupt);
+        return makeInterruption(currentTask, undefined, INTERRUPTION_TYPES.WAITING_FOR_CHILDREN, dependencies, this.debug?.interrupt);
       }
     }
 
@@ -354,7 +353,6 @@ class SagaTester {
    * - noNext is true, the result of the effect is returned directly (allowing processing a list of effects, like with a race or all).
    * - currentTask; the pseudo task either yielded via a fork, or as a stand-in for the generator's execution root.
    * - currentTask.id; unique identifier of a task for debugging purposes
-   * - currentTask.children; the subtasks which must complete before this task is considered resolved
    * - currentTask.parentTask; the owning task, undefined if this is the root OR this is a spawn task
    * - currentTask.generator; the generator whose execution is tied to this task
    * - currentTask.isCancelled; boolean, set to false at first. Can be set to true with a "cancel" effect, and is returned when encountering a "cancelled" effect.
@@ -443,7 +441,7 @@ class SagaTester {
     cancelledTasks.forEach(recursiveCancelTasks);
 
     if (payload === '@@redux-saga/SELF_CANCELLATION') {
-      return makeInterruption(currentTask, undefined, INTERRUPTION_TYPES.GENERATOR, currentTask.id, this.debug?.interrupt);
+      return makeInterruption(currentTask, undefined, INTERRUPTION_TYPES.WAITING_FOR_CHILDREN, currentTask.id, this.debug?.interrupt);
     }
     return this.nextOrReturn(generator, undefined, options);
   }
@@ -454,14 +452,8 @@ class SagaTester {
 
     const wrappedTaskList = Array.isArray(payload) ? [...payload] : [payload];
     const results = [];
-    if (wrappedTaskList.some((t) => ![false, undefined].includes(t.wait) || t.interruption || t.children.length > 0)) {
+    if (wrappedTaskList.some((t) => ![false, undefined].includes(t.wait) || getDependencies(t, this.pendingTasks).length > 0)) {
       const taskList = Array.isArray(payload) ? [...payload] : payload;
-      wrappedTaskList.forEach((t) => {
-        if (!currentTask.children.includes(t) && this.pendingTasks.includes(t)) {
-          // For tasks delegated inside sub-tasks (e.g. a join inside a race/all inside another race/all)
-          currentTask.children.push(t);
-        }
-      });
       return makeInterruption(currentTask, taskList, INTERRUPTION_TYPES.JOIN, Array.isArray(payload) ? payload.map((t) => t.id) : payload.id, this.debug?.interrupt);
     }
     const sorted = sortTaskPriority([...wrappedTaskList]);
@@ -506,7 +498,6 @@ class SagaTester {
     } else if (methodId === 'delayP') {
       // handle delay effect
       const result = this.makeNewTask({ result: undefined, wait: args[0], parentTask: options.currentTask, name: 'delay' });
-      options.currentTask.children.push(result);
       return makeInterruption(options.currentTask, undefined, INTERRUPTION_TYPES.GENERATOR, result.id, this.debug?.interrupt);
     }
     if (!Object.keys(this.callCalls).includes(methodId)) {
@@ -592,7 +583,6 @@ class SagaTester {
     const { payload } = value;
 
     const newTask = this.makeNewTask({ wait: value.type === 'RACE' ? 'race' : 'all', parentTask: currentTask });
-    currentTask.children.push(newTask);
     currentTask = newTask;
 
     // All actions are executed, even for race; if you want to mock a certain action "winning" the race, just have all other actions return undefined.
@@ -602,16 +592,12 @@ class SagaTester {
     if (!Array.isArray(payload)) {
       results = {};
       Object.keys(payload).forEach((key) => {
-        const res = this.processEffect(generator, { value: payload[key] }, { ...options, currentTask, noNext: true, isRacing: verbIsRace });
-        this.addMissingDependencies(res, currentTask);
-        results[key] = res;
+        results[key] = this.processEffect(generator, { value: payload[key] }, { ...options, currentTask, noNext: true, isRacing: verbIsRace });
       });
     } else {
       results = [];
       payload.forEach((el) => {
-        const res = this.processEffect(generator, { value: el }, { ...options, currentTask, noNext: true, isRacing: verbIsRace });
-        this.addMissingDependencies(res, currentTask);
-        results.push(res);
+        results.push(this.processEffect(generator, { value: el }, { ...options, currentTask, noNext: true, isRacing: verbIsRace }));
       });
     }
 
@@ -619,17 +605,37 @@ class SagaTester {
     const interruptionType = value.type === 'RACE' ? INTERRUPTION_TYPES.RACE : INTERRUPTION_TYPES.ALL;
     if (Array.isArray(results)) {
       if (results[conditionType]((r) => r?.value === __INTERRUPT__)) {
-        return makeInterruption(currentTask, results, interruptionType, currentTask.id, this.debug?.interrupt);
+        const dependencies = [];
+        results = results.map((r) => (r?.value === __INTERRUPT__ && r.origin !== currentTask.id ? { ...r, dependencies: r.origin } : r));
+        results
+          .filter((r) => r?.value === __INTERRUPT__ && r?.dependencies != null)
+          .map((r) => (Array.isArray(r.dependencies) ? r.dependencies : [r.dependencies]))
+          .forEach((deps) => {
+            deps.forEach((dependency) => { if (!dependencies.includes(dependency)) { dependencies.push(dependency); } });
+          });
+        return makeInterruption(currentTask, results, interruptionType, dependencies, this.debug?.interrupt);
       }
     } else if (Object.keys(results)[conditionType]((key) => results[key]?.value === __INTERRUPT__)) {
-      return makeInterruption(currentTask, results, interruptionType, currentTask.id, this.debug?.interrupt);
+      const dependencies = [];
+      Object.keys(results).forEach((key) => {
+        if (results[key]?.value === __INTERRUPT__ && results[key].origin !== currentTask.id) {
+          results[key] = { ...results[key], dependencies: results[key].origin };
+        }
+      });
+
+      Object.keys(results)
+        .filter((key) => results[key]?.value === __INTERRUPT__ && results[key]?.dependencies)
+        .map((key) => (Array.isArray(results[key].dependencies) ? results[key].dependencies : [results[key].dependencies]))
+        .forEach((deps) => {
+          deps.forEach((dependency) => { if (!dependencies.includes(dependency)) { dependencies.push(dependency); } });
+        });
+      return makeInterruption(currentTask, results, interruptionType, dependencies, this.debug?.interrupt);
     }
     // Take out unfinished tasks in case of a partially completed race
     Object.keys(results).forEach((key) => { const v = results[key]; results[key] = v?.value === __INTERRUPT__ ? undefined : v; });
 
     // race or all task was completed without any interruption, so we resolve it
     this.pendingTasks = this.pendingTasks.filter((t) => currentTask.id !== t.id);
-    currentTask.parentTask.children = currentTask.parentTask.children.filter((t) => currentTask.id !== t.id);
 
     return this.nextOrReturn(generator, results, options);
   }
@@ -720,7 +726,7 @@ class SagaTester {
       // eslint-disable-next-line no-param-reassign
       task.result = this.processGenerator(task.generator, { task, parentTask: task.parentTask, isResuming, resumeValue });
     }
-    if (!task.interruption && !(task.wait === 'waiting-children' && task.children.length > 0) && task.id !== 0) {
+    if (getDependencies(task, this.pendingTasks).length === 0 && task.id !== 0) {
       // eslint-disable-next-line no-param-reassign
       task.wait = false;
     }
@@ -761,20 +767,6 @@ class SagaTester {
     }
   };
 
-  addMissingDependencies = (nextResult, currentTask) => {
-    if (nextResult?.value === __INTERRUPT__ && nextResult.dependencies != null) {
-      const deps = Array.isArray(nextResult.dependencies) ? nextResult.dependencies : [nextResult.dependencies];
-      deps.forEach((d) => {
-        if (!currentTask.children.some((t) => t.id === d) && d !== currentTask.id) {
-          const match = this.pendingTasks.find((t) => t.id === d);
-          if (match) {
-            currentTask.children.push(match);
-          }
-        }
-      });
-    }
-  };
-
   /**
    * Triggers the "next" step of the generator with the value, if the noNext mode if disabled.
    * If we're in noNext mode, we simply return the value of the verb, and we don't do "next".
@@ -794,7 +786,7 @@ class SagaTester {
   }
 
   makeNewTask(options) {
-    const newTask = { '@@redux-saga/TASK': true, isCancelled: false, children: [], id: this.taskId, ...options };
+    const newTask = { '@@redux-saga/TASK': true, isCancelled: false, id: this.taskId, ...options };
     this.taskId++;
     if (options.wait !== undefined) {
       this.pendingTasks.push(newTask);
@@ -806,7 +798,7 @@ class SagaTester {
     // eslint-disable-next-line no-constant-condition
     while (true) {
       this.unblockLeastPriorityTaskAndResumeGenerators();
-      if (rootTask.children.length === 0) {
+      if (getDependencies(rootTask, this.pendingTasks).length === 0) {
         break;
       }
     }
@@ -818,7 +810,7 @@ class SagaTester {
   unblockLeastPriorityTaskAndResumeGenerators() {
     this.incrementStep();
     sortTaskPriority(this.pendingTasks);
-    const fastestTask = this.pendingTasks.find((t) => t.children.length === 0 || (t.wait === 'generator' && t.interruption == null));
+    const fastestTask = this.pendingTasks.find((t) => getDependencies(t, this.pendingTasks).length === 0 || (t.wait === 'generator' && t.interruption == null));
     if (!fastestTask) {
       debugDeadlock(this.pendingTasks);
     }
@@ -826,7 +818,7 @@ class SagaTester {
 
     // We run all tasks with equivalent weights "simultaneously"
     const tasksToRun = this.pendingTasks.filter((t) => (
-      t.children.length === 0 &&
+      getDependencies(t, this.pendingTasks).length === 0 &&
       (
         selectedPriority === true ||
         [0, false, 'race', 'all', 'generator', 'waiting-children'].includes(t.wait) ||
@@ -855,14 +847,19 @@ class SagaTester {
       // eslint-disable-next-line no-console
       console.log(debugBubbledTasks(finishedTasks, this.pendingTasks));
     }
+    const finishedIds = finishedTasks.map((f) => f.id);
     this.pendingTasks.forEach((p) => {
-      const remainingChildren = [];
-      const ranChildren = p.children.filter((child) => { if (finishedTasks.includes(child)) { return true; } remainingChildren.push(child); return false; });
-      // eslint-disable-next-line no-param-reassign
-      p.children = remainingChildren;
-      if (ranChildren.length > 0 && p.interruption) {
+      const allDependencies = getDependencies(p, this.pendingTasks);
+      const ranIds = allDependencies.filter((dependencies) => finishedIds.includes(dependencies));
+      if (ranIds.length > 0 && p.interruption) {
         const { kind, pending } = p.interruption;
-        if ([INTERRUPTION_TYPES.RACE, INTERRUPTION_TYPES.ALL].includes(kind)) {
+        if (p.interruption.dependencies != null && Array.isArray(p.interruption.dependencies)) {
+          // eslint-disable-next-line no-param-reassign
+          p.interruption.dependencies = p.interruption.dependencies.filter((d) => !finishedIds.includes(d));
+        }
+        if (allDependencies.length === ranIds.length && kind === INTERRUPTION_TYPES.WAITING_FOR_CHILDREN) {
+          tasksToRun.push({ task: p, value: undefined });
+        } else if ([INTERRUPTION_TYPES.RACE, INTERRUPTION_TYPES.ALL].includes(kind)) {
           // pending is an object or list of interruptions, and if race:one/all:all of they keys/indexes are not interrupted anymore, it must be run.
           Object.keys(pending).forEach((key) => {
             if (pending[key]?.['@@__isComplete__'] || pending[key]?.dependencies == null) { return; }
@@ -913,7 +910,7 @@ class SagaTester {
           }
         } else { // INTERRUPTION_TYPES.GENERATOR
           // resolve the task which caused the generator to be interrupted (fork'ed tasks may not have blocked the generator)
-          const match = ranChildren.find((t) => t.id === p.interruption.dependencies);
+          const match = finishedTasks.find((t) => t.id === p.interruption.dependencies);
           if (match) {
             tasksToRun.push({ task: p, value: match.result });
           }
@@ -922,8 +919,6 @@ class SagaTester {
     });
 
     tasksToRun.forEach(({ task, value }) => {
-      // eslint-disable-next-line no-param-reassign
-      task.children = [];
       if (task.id === 0) {
         // eslint-disable-next-line no-param-reassign
         task.result = value;
@@ -944,7 +939,7 @@ class SagaTester {
   }
 
   cleanupRanTasks() {
-    this.pendingTasks = this.pendingTasks.filter((t) => t.wait !== false || t.children.length !== 0);
+    this.pendingTasks = this.pendingTasks.filter((t) => t.wait !== false || getDependencies(t, this.pendingTasks).length !== 0);
   }
 
   incrementStep() {

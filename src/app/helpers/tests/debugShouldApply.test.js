@@ -41,11 +41,11 @@ describe('debugShouldApply', () => {
     // first log, tree is pretty big since most tasks are blocked
     expect(logMock.mock.calls[0][0])
       .toEqual(`INTERRUPT
-task: 2-method2, taskChildren: 5-methodInner, dependencies: 5, interruptionType: @@sagaTester__join__
+task: 2-method2, dependencies: 5, interruptionType: @@sagaTester__join__
 `);
     expect(logMock.mock.calls[1][0])
       .toEqual(`INTERRUPT
-task: 3-method3, taskChildren: 6-methodInner, dependencies: 6, interruptionType: @@sagaTester__join__
+task: 3-method3, dependencies: 6, interruptionType: @@sagaTester__join__
 `);
   });
   it('should interruptions when matching the task ids or names provided in the config (single id', () => {
@@ -74,7 +74,7 @@ task: 3-method3, taskChildren: 6-methodInner, dependencies: 6, interruptionType:
     // first log, tree is pretty big since most tasks are blocked
     expect(logMock.mock.calls[0][0])
       .toEqual(`INTERRUPT
-task: 0-root, taskChildren: 1-method1,2-method2,3-method3, dependencies: 1,2,3, interruptionType: @@sagaTester__join__
+task: 0-root, dependencies: 1,2,3, interruptionType: @@sagaTester__join__
 `);
   });
   it('should interruptions when matching the task ids or names provided in the config (single id', () => {
@@ -103,7 +103,7 @@ task: 0-root, taskChildren: 1-method1,2-method2,3-method3, dependencies: 1,2,3, 
     // first log, tree is pretty big since most tasks are blocked
     expect(logMock.mock.calls[0][0])
       .toEqual(`INTERRUPT
-task: 0-root, taskChildren: 1-method1,2-method2,3-method3, dependencies: 1,2,3, interruptionType: @@sagaTester__join__
+task: 0-root, dependencies: 1,2,3, interruptionType: @@sagaTester__join__
 `);
   });
 });

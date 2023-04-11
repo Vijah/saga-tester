@@ -93,77 +93,77 @@ describe('debugBubbledTasks', () => {
     expect(logMock.mock.calls[0][0].replace(/\r\n/g, '\n')).toEqual(`-- TASKS TO BUBBLE:
 method              id: 1  wait: false    value: arg1-executed-1
 -- TREE:
-calledMethod        id: 10 wait: generator Children: [11] Partially resolved value: 
+calledMethod        id: 10 wait: generator Dependencies: [11] Partially resolved value: 
 [
   TASK method              id: 11 wait: 110      
 ]
-                    id: 7  wait: all       Children: [1,2,8,10] Partially resolved value: 
+                    id: 7  wait: all       Dependencies: [1,2,8,10] Partially resolved value: 
 {
   task1: Interruption kind: @@sagaTester__join__, Pending: 1,
   task2: Interruption kind: @@sagaTester__join__, Pending: 2,
   sub: Interruption kind: @@sagaTester__all__, Pending: 8,
   task8: Interruption kind: @@sagaTester__generator__, Pending: 10
 }
-                    id: 8  wait: all       Children: [3,4,9] Partially resolved value: 
+                    id: 8  wait: all       Dependencies: [3,4,9] Partially resolved value: 
 [
   Interruption kind: @@sagaTester__join__, Pending: 3,4,
   Interruption kind: @@sagaTester__all__, Pending: 9
 ]
-                    id: 9  wait: all       Children: [5,6] Partially resolved value: 
+                    id: 9  wait: all       Dependencies: [5,6] Partially resolved value: 
 [
   Interruption kind: @@sagaTester__join__, Pending: 5,
   Interruption kind: @@sagaTester__join__, Pending: 6
 ]
-root                id: 0  wait: generator Children: [7] (pending)
-methodNested        id: 6  wait: 53        Children: [] (pending)
-method              id: 4  wait: 56        Children: [] (pending)
-method              id: 3  wait: 65        Children: [] (pending)
-method              id: 5  wait: 97        Children: [] (pending)
-method              id: 11 wait: 110       Children: [] (pending)
-method              id: 2  wait: true      Children: [] (pending)
+root                id: 0  wait: generator Dependencies: [7] (pending)
+methodNested        id: 6  wait: 53        Dependencies: [] (pending)
+method              id: 4  wait: 56        Dependencies: [] (pending)
+method              id: 3  wait: 65        Dependencies: [] (pending)
+method              id: 5  wait: 97        Dependencies: [] (pending)
+method              id: 11 wait: 110       Dependencies: [] (pending)
+method              id: 2  wait: true      Dependencies: [] (pending)
 `.replace(/\r\n/g, '\n'));
 
     // Middle log
     expect(logMock.mock.calls[3][0].replace(/\r\n/g, '\n')).toEqual(`-- TASKS TO BUBBLE:
 method              id: 13 wait: false    value: arg7-executed-4
 -- TREE:
-calledMethod        id: 10 wait: generator Children: [11] Partially resolved value: 
+calledMethod        id: 10 wait: generator Dependencies: [11] Partially resolved value: 
 [
   TASK method              id: 11 wait: 105      
 ]
-deeplyNestedMethodWithVeryLongNameid: 14 wait: generator Children: [15] Partially resolved value: 
+deeplyNestedMethodWithVeryLongNameid: 14 wait: generator Dependencies: [15] Partially resolved value: 
 TASK method              id: 15 wait: 90       
-                    id: 7  wait: all       Children: [2,8,10] Partially resolved value: 
+                    id: 7  wait: all       Dependencies: [2,8,10] Partially resolved value: 
 {
   task1: Resolved (arg1-executed-1),
   task2: Interruption kind: @@sagaTester__join__, Pending: 2,
   sub: Interruption kind: @@sagaTester__all__, Pending: 8,
   task8: Interruption kind: @@sagaTester__generator__, Pending: 10
 }
-                    id: 8  wait: all       Children: [9] Partially resolved value: 
+                    id: 8  wait: all       Dependencies: [9] Partially resolved value: 
 [
   Resolved ([arg3-executed-3,arg4-executed-2]),
   Interruption kind: @@sagaTester__all__, Pending: 9
 ]
-                    id: 9  wait: all       Children: [5,6] Partially resolved value: 
+                    id: 9  wait: all       Dependencies: [5,6] Partially resolved value: 
 [
   Interruption kind: @@sagaTester__join__, Pending: 5,
   Interruption kind: @@sagaTester__join__, Pending: 6
 ]
-root                id: 0  wait: generator Children: [7] (pending)
-methodNested        id: 6  wait: 48        Children: [14] (pending)
-method              id: 15 wait: 90        Children: [] (pending)
-method              id: 5  wait: 92        Children: [] (pending)
-method              id: 11 wait: 105       Children: [] (pending)
-method              id: 12 wait: 197       Children: [] (pending)
-method              id: 2  wait: true      Children: [] (pending)
+root                id: 0  wait: generator Dependencies: [7] (pending)
+methodNested        id: 6  wait: 48        Dependencies: [14] (pending)
+method              id: 15 wait: 90        Dependencies: [] (pending)
+method              id: 5  wait: 92        Dependencies: [] (pending)
+method              id: 11 wait: 105       Dependencies: [] (pending)
+method              id: 12 wait: 197       Dependencies: [] (pending)
+method              id: 2  wait: true      Dependencies: [] (pending)
 `.replace(/\r\n/g, '\n'));
 
     // Last log: most stuff is resolved
     expect(logMock.mock.calls[14][0].replace(/\r\n/g, '\n')).toEqual(`-- TASKS TO BUBBLE:
                     id: 7  wait: false    value: [object Object]
 -- TREE:
-root                id: 0  wait: generator Children: [7] (pending)
+root                id: 0  wait: generator Dependencies: [7] (pending)
 `.replace(/\r\n/g, '\n'));
     logMock.mockRestore();
   });

@@ -1,3 +1,5 @@
+import getDependencies from './getDependencies';
+
 const debugDeadlock = (pendingTasks, prefix = 'Deadlock: ') => {
   const simplifiedPendingTasks = pendingTasks.map((p) => {
     let interruption;
@@ -21,7 +23,7 @@ const debugDeadlock = (pendingTasks, prefix = 'Deadlock: ') => {
     return {
       ...p,
       generator: undefined,
-      children: p.children.map((c) => c.id),
+      dependencies: getDependencies(p, pendingTasks),
       parentTask: p.parentTask?.id,
       interruption,
       latestValue: p.latestValue?.type,

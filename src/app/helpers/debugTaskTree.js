@@ -1,5 +1,5 @@
-import debugTaskChildren from './debugTaskChildren';
+import debugTaskDependencies from './debugTaskDependencies';
 
-const debugTaskTree = (tasks) => tasks.map(debugTaskChildren).join('\r\n');
+const debugTaskTree = (tasks) => tasks.map(debugTaskDependencies(tasks)).join('\r\n');
 
 export default debugTaskTree;
