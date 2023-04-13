@@ -141,8 +141,8 @@ describe('SagaTester', () => {
         yield fork({ context, fn: method4 }, 'arg4');
       }
 
-      // Saga Tester config
-      const config = {
+      // Run the saga
+      new SagaTester(saga, {
         expectedActions: [
           { type: 'TYPE1', times: 0 },
           { action: { type: 'TYPE2', arg: 'arg2' }, times: 1 },
@@ -152,10 +152,8 @@ describe('SagaTester', () => {
         expectedGenerators: {
           method1: [{ times: 1, params: ['arg1'] }],
         },
-      };
-
-      // Run the saga
-      new SagaTester(saga, config).run();
+        options: { stepLimit: 20 },
+      }).run();
     });
     it('should treat fork as if creating a task with the given output, deferring its execution, and handling cancellation status', () => {
       const method1 = mockGenerator('method1');
@@ -351,6 +349,142 @@ describe('SagaTester', () => {
         'arg3-executed-4', // Terminated by joint, but after task 3 because wait is higher
         'arg4-executed-3',
       ]);
+    });
+    it('should wait for unfinished children tasks to end before finishing the parent', () => {
+      let executionOrder = 0;
+      const sideEffectMethod = jest.fn();
+      function* method(arg) {
+        executionOrder += 1;
+        sideEffectMethod(`${arg}-executed-${executionOrder}`);
+      }
+      function* parentMethod(arg) {
+        yield fork(method, `${arg}-arg1`);
+        yield fork(method, `${arg}-arg2`);
+      }
+
+      function* saga() {
+        yield fork(parentMethod, 'arg1');
+        yield fork(parentMethod, 'arg2');
+      }
+
+      expect(new SagaTester(saga, {
+        expectedGenerators: {
+          parentMethod: [
+            { params: ['arg1'], call: true, wait: 50 },
+            { params: ['arg2'], call: true },
+          ],
+          method: [
+            { params: ['arg1-arg1'], call: true, wait: 25 },
+            { params: ['arg1-arg2'], call: true },
+            { params: ['arg2-arg1'], call: true },
+            { params: ['arg2-arg2'], call: true, wait: 60 },
+          ],
+        },
+      }).run()).toBe(undefined);
+      expect(sideEffectMethod).toHaveBeenCalledTimes(4);
+      expect(sideEffectMethod).toHaveBeenCalledWith('arg2-arg1-executed-1');
+      expect(sideEffectMethod).toHaveBeenCalledWith('arg1-arg2-executed-2');
+      expect(sideEffectMethod).toHaveBeenCalledWith('arg1-arg1-executed-3');
+      expect(sideEffectMethod).toHaveBeenCalledWith('arg2-arg2-executed-4'); // Because the times are not additive
+    });
+    it('should have parent tasks returning correctly despite waiting for children tasks to finish', () => {
+      let executionOrder = 0;
+      const sideEffectMethod = jest.fn();
+      function* method(arg) {
+        executionOrder += 1;
+        sideEffectMethod(`${arg}-executed-${executionOrder}`);
+      }
+      function* parentMethod(arg) {
+        yield fork(method, `${arg}-arg1`);
+        yield fork(method, `${arg}-arg2`);
+        return arg;
+      }
+
+      function* saga() {
+        const task1 = yield fork(parentMethod, 'arg1');
+        const task2 = yield fork(parentMethod, 'arg2');
+        return yield join([task1, task2]);
+      }
+
+      expect(new SagaTester(saga, {
+        expectedGenerators: {
+          parentMethod: [
+            { params: ['arg1'], call: true, wait: 50 },
+            { params: ['arg2'], call: true },
+          ],
+          method: [
+            { params: ['arg1-arg1'], call: true, wait: 25 },
+            { params: ['arg1-arg2'], call: true },
+            { params: ['arg2-arg1'], call: true },
+            { params: ['arg2-arg2'], call: true, wait: 60 },
+          ],
+        },
+      }).run()).toEqual(['arg1', 'arg2']);
+      expect(sideEffectMethod).toHaveBeenCalledTimes(4);
+      expect(sideEffectMethod).toHaveBeenCalledWith('arg2-arg1-executed-1');
+      expect(sideEffectMethod).toHaveBeenCalledWith('arg1-arg2-executed-2');
+      expect(sideEffectMethod).toHaveBeenCalledWith('arg1-arg1-executed-3');
+      expect(sideEffectMethod).toHaveBeenCalledWith('arg2-arg2-executed-4'); // Because the times are not additive
+    });
+    it('should have parent tasks returning correctly despite waiting for children tasks to finish (deep version)', () => {
+      let executionOrder = 0;
+      const sideEffectMethod = jest.fn();
+      function* method(arg) {
+        executionOrder += 1;
+        sideEffectMethod(`${arg}-executed-${executionOrder}`);
+        return `${arg}-executed-${executionOrder}`;
+      }
+      function* deepParentMethod(arg) {
+        yield fork(method, `${arg}-slow`);
+        const task = yield fork(method, `${arg}-fast`);
+        return yield join(task);
+      }
+      function* parentMethod(arg) {
+        yield fork(deepParentMethod, `${arg}-slow`);
+        const task = yield fork(deepParentMethod, `${arg}-fast`);
+        return yield join(task);
+      }
+
+      function* saga() {
+        const task1 = yield fork(parentMethod, 'slow');
+        const task2 = yield fork(parentMethod, 'fast');
+        return yield join([task1, task2]);
+      }
+
+      expect(new SagaTester(saga, {
+        expectedGenerators: {
+          parentMethod: [
+            { params: ['slow'], call: true, wait: 100 },
+            { params: ['fast'], call: true, wait: 10 },
+          ],
+          deepParentMethod: [
+            { params: ['slow-slow'], call: true, wait: 100 },
+            { params: ['fast-slow'], call: true, wait: 100 },
+            { params: ['slow-fast'], call: true, wait: 10 },
+            { params: ['fast-fast'], call: true },
+          ],
+          method: [
+            { params: ['slow-slow-slow'], call: true, wait: 100 },
+            { params: ['slow-fast-slow'], call: true, wait: 100 },
+            { params: ['slow-slow-fast'], call: true },
+            { params: ['slow-fast-fast'], call: true, wait: 10 },
+            { params: ['fast-slow-slow'], call: true, wait: 100 },
+            { params: ['fast-fast-slow'], call: true, wait: 100 },
+            { params: ['fast-slow-fast'], call: true },
+            { params: ['fast-fast-fast'], call: true },
+          ],
+        },
+      }).run()).toEqual(['slow-fast-fast-executed-4', 'fast-fast-fast-executed-1']);
+      expect(sideEffectMethod).toHaveBeenCalledTimes(8);
+      // Times are not additive
+      expect(sideEffectMethod).toHaveBeenCalledWith('fast-fast-fast-executed-1');
+      expect(sideEffectMethod).toHaveBeenCalledWith('fast-fast-slow-executed-3');
+      expect(sideEffectMethod).toHaveBeenCalledWith('fast-slow-fast-executed-2');
+      expect(sideEffectMethod).toHaveBeenCalledWith('fast-slow-slow-executed-6');
+      expect(sideEffectMethod).toHaveBeenCalledWith('slow-fast-fast-executed-4');
+      expect(sideEffectMethod).toHaveBeenCalledWith('slow-fast-slow-executed-7');
+      expect(sideEffectMethod).toHaveBeenCalledWith('slow-slow-fast-executed-5');
+      expect(sideEffectMethod).toHaveBeenCalledWith('slow-slow-slow-executed-8');
     });
     it('should end forked tasks in the correct order when they are yielded simultaneously inside an all effect', () => {
       let executionOrder = 0;
@@ -612,6 +746,54 @@ describe('SagaTester', () => {
           'arg2-1-childOrder-1-parentOrder-1',
           'arg2-2-childOrder-3-parentOrder-1',
         ],
+      ]);
+    });
+    it('should end deferred calls in the correct order when they are yielded simultaneously inside an all effect', () => {
+      let childExecutionOrder = 0;
+      let parentExecutionOrder = 0;
+      function* method(arg) {
+        childExecutionOrder += 1;
+        return `${arg}-childOrder-${childExecutionOrder}`;
+      }
+      function* methodNested(arg) {
+        const task1 = call(method, `${arg}-1`);
+        const task2 = call(method, `${arg}-2`);
+        const result = yield all([task1, task2]);
+        parentExecutionOrder += 1;
+        return result.map((r) => `${r}-parentOrder-${parentExecutionOrder}`);
+      }
+
+      function* saga() {
+        const task1 = call(methodNested, 'arg1');
+        const task2 = call(methodNested, 'arg2');
+        const task3 = call(methodNested, 'mocked');
+        return yield all([task1, task2, task3]);
+      }
+
+      expect(new SagaTester(saga, {
+        expectedCalls: {
+          method: [
+            { params: ['arg1-1'], call: true, wait: 160 },
+            { params: ['arg1-2'], call: true, wait: true },
+            { params: ['arg2-1'], call: true, wait: 100 },
+            { params: ['arg2-2'], call: true, wait: 300 },
+          ],
+          methodNested: [
+            { params: ['arg1'], call: true, wait: false },
+            { params: ['arg2'], call: true, wait: 150 },
+            { params: ['mocked'], output: 'mocked-output', wait: 10 },
+          ],
+        },
+      }).run()).toEqual([
+        [ // The parent task is executed instantly, but resolves second since its inner tasks are slower
+          'arg1-1-childOrder-2-parentOrder-2',
+          'arg1-2-childOrder-4-parentOrder-2',
+        ],
+        [
+          'arg2-1-childOrder-1-parentOrder-1',
+          'arg2-2-childOrder-3-parentOrder-1',
+        ],
+        'mocked-output',
       ]);
     });
     it('should complete tasks in the correct order even if they are awaited in separate tasks', () => {

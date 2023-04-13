@@ -7,7 +7,14 @@ TODO:
 --- 2.1.0
 
 TODO:
-- implement cps and "sideEffects" to inject actions and run timers during 
+- implement cps and "sideEffects" to inject actions and run timers during
+- implement "multipleOutputs", as opposed to "output", for an identical call which returns different things (to handle infinite loops better).
+- implement redux side effect modifying the selectorConfig (inputs selectorConfig, outputs modified selectorConfig). Accepts reducers.
+- implement run timers side effect.
+- implement action side effect.
+- implement cancellation side effect.
+- implement spawn side effect. (a saga runs in parallel to the main saga)
+- implement side-effects on: calls, actions, (sideEffects: [], and multipleSideEffects: [][], on: 'start', 'init', 'end') and on specific step numbers (on: number).
 
 --- 2.0.0
 
@@ -23,7 +30,7 @@ TODO:
 - Test with two parallel tasks that keep pending and putting actions.
 - Deadlock test.
 - Concurrent takeLatest behavior.
-- Test demonstrating a takeLatest generator is interrupted when an action is put while the generator is still running.
+- Test demonstrating a takeLatest generator is cancelled when an action is put while the generator is still running.
 - Concurrent takeEvery behavior.
 - Test demonstrating a takeEvery generator can run multiple instances in a row when an action is put while the generator is still running.
 - Concurrent takeLeading behavior.
@@ -40,6 +47,8 @@ TODO:
 --- 1.3.0
 
 TODO:
+- Implement option 'decreaseActiveTaskTimersWhenWaiting', defaults to true, for more intuitive behavior (breaking).
+- Fix race effect not cancelling losing tasks
 - Implement spawn
 - Implement "waitForSpawned" option
 - Update README with new features (esp. concurrency behavior, options section and debug section).

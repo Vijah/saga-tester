@@ -7,6 +7,7 @@ import debugShouldApply from './helpers/debugShouldApply';
 import debugUnblock from './helpers/debugUnblock';
 import getDependencies from './helpers/getDependencies';
 import INTERRUPTION_TYPES from './helpers/INTERRUPTION_TYPES';
+import isGenerator from './helpers/isGenerator';
 import makeInterruption from './helpers/makeInterruption';
 import paramsMatch from './helpers/paramsMatch';
 import sortTaskPriority from './helpers/sortTaskPriority';
@@ -64,6 +65,11 @@ function incrementCallCounter(configObject, args) {
   /* eslint-disable-next-line no-param-reassign */
   configObject.timesCalled = (configObject.timesCalled === undefined) ? 1 : configObject.timesCalled + 1;
   configObject.receivedArgs.push(args);
+}
+
+function executeFn({ context, fn, args }) {
+  const method = context != null ? fn.bind(context) : fn;
+  return method(...args);
 }
 
 /**
@@ -281,7 +287,7 @@ class SagaTester {
    * - name: Name for the generator's task, for debug purposes. Corresponds to the name of the generator.
    */
   processGenerator(generator, options = {}) {
-    let { task: currentTask } = options;
+    let { currentTask } = options;
     const { parentTask, isResuming, resumeValue, name } = options;
     let nextResult;
     if (currentTask?.isCancelled) {
@@ -307,7 +313,7 @@ class SagaTester {
             if (nextResult.origin === currentTask.id) {
               return nextResult;
             }
-            return makeInterruption(currentTask, undefined, INTERRUPTION_TYPES.GENERATOR, nextResult.dependencies, this.debug?.interrupt);
+            return makeInterruption(currentTask, undefined, INTERRUPTION_TYPES.GENERATOR, nextResult.origin, this.debug?.interrupt);
           }
           if (currentTask.interruption == null) {
             makeInterruption(currentTask, undefined, INTERRUPTION_TYPES.GENERATOR, nextResult.origin, this.debug?.interrupt);
@@ -512,7 +518,7 @@ class SagaTester {
     }
     incrementCallCounter(matchedCalls[0], args);
 
-    return this.triggerNextStepWithResult(matchedCalls[0], generator, { ...options, name: methodId, wait: matchedCalls[0].wait }, value);
+    return this.triggerNextStepWithResult(matchedCalls[0], generator, { ...options, name: methodId, wait: matchedCalls[0].wait }, value.payload);
   }
 
   processPutEffect(generator, value, options) {
@@ -660,14 +666,20 @@ class SagaTester {
     return this.triggerNextStepWithResult(matchedCalls[0], generator, { ...options, wait: matchedCalls[0].wait, name }, undefined, subGenerator);
   }
 
-  triggerNextStepWithResult = (matchedCall, generator, options, value, subGenerator) => {
+  triggerNextStepWithResult = (matchedCall, generator, options, effectPayload, subGenerator) => {
     const { isTask, currentTask, isBoundToParent, wait, name } = options;
+
+    if (isGenerator(effectPayload?.fn)) {
+      // eslint-disable-next-line no-param-reassign
+      subGenerator = executeFn(effectPayload);
+    }
 
     if (matchedCall.throw) {
       return generator.throw(matchedCall.throw);
     }
+
+    let result;
     if (matchedCall.call) {
-      let result;
       if (isTask) {
         // eslint-disable-next-line no-promise-executor-return
         const task = this.makeNewTask({ wait: typeof wait === 'number' ? wait + 1 : wait, generator: subGenerator, name });
@@ -680,25 +692,25 @@ class SagaTester {
         result = task;
       } else if (subGenerator) {
         if (![false, null, undefined].includes(wait)) {
-          result = this.makeNewTask({ wait: typeof wait === 'number' ? wait + 1 : wait, generator: subGenerator, name });
+          result = this.makeNewTask({ wait: typeof wait === 'number' ? wait + 1 : wait, generator: subGenerator, parentTask: currentTask, name });
           return makeInterruption(currentTask, undefined, INTERRUPTION_TYPES.GENERATOR, result.id, this.debug?.interrupt);
         }
         result = this.processGenerator(subGenerator, { parentTask: currentTask, name });
       } else {
         if (![false, null, undefined].includes(wait)) {
-          const executeFnBound = this.executeFn;
+          result = this.makeNewTask({ wait: typeof wait === 'number' ? wait + 1 : wait, parentTask: currentTask, name });
           // eslint-disable-next-line no-inner-declarations
-          function* asyncCall() {
-            return executeFnBound(value.payload, { parentTask: currentTask, name });
+          function* asyncCall(task) {
+            return executeFn(effectPayload, { currentTask: task, parentTask: currentTask, name });
           }
-          result = this.makeNewTask({ wait: typeof wait === 'number' ? wait + 1 : wait, generator: asyncCall(), name });
+          result.generator = asyncCall(result);
           return makeInterruption(currentTask, undefined, INTERRUPTION_TYPES.GENERATOR, result.id, this.debug?.interrupt);
         }
-        result = this.executeFn(value.payload, { parentTask: currentTask, name });
+        result = executeFn(effectPayload, { parentTask: currentTask, name });
       }
       return this.nextOrReturn(generator, result, options);
     }
-    let result;
+
     if (isTask) {
       result = this.makeNewTask({ result: matchedCall.output, wait: undefined, parentTask: currentTask, name });
     } else if (![false, null, undefined].includes(wait)) {
@@ -723,28 +735,16 @@ class SagaTester {
     // eslint-disable-next-line no-param-reassign
     delete task.interruption;
     if (task.generator !== undefined && (task.result === undefined || task.result?.value === __INTERRUPT__) && !['waiting-children', 'race', 'all'].includes(task.wait)) {
-      // eslint-disable-next-line no-param-reassign
-      task.result = this.processGenerator(task.generator, { task, parentTask: task.parentTask, isResuming, resumeValue });
+      const result = this.processGenerator(task.generator, { currentTask: task, parentTask: task.parentTask, isResuming, resumeValue });
+      if (result?.value !== __INTERRUPT__) {
+        // eslint-disable-next-line no-param-reassign
+        task.result = result;
+      }
     }
     if (getDependencies(task, this.pendingTasks).length === 0 && task.id !== 0) {
       // eslint-disable-next-line no-param-reassign
       task.wait = false;
     }
-  };
-
-  executeFn = ({ context, fn, args }, { task: currentTask, parentTask, name } = {}) => {
-    let result;
-    let method = fn;
-
-    if (context != null) {
-      // eslint-disable-next-line no-param-reassign
-      method = fn.bind(context);
-    }
-    result = method(...args);
-    if (result != null && typeof result.next === 'function') {
-      result = this.processGenerator(result, { task: currentTask, parentTask, name });
-    }
-    return result;
   };
 
   countDownTasks = (options) => {
@@ -788,9 +788,7 @@ class SagaTester {
   makeNewTask(options) {
     const newTask = { '@@redux-saga/TASK': true, isCancelled: false, id: this.taskId, ...options };
     this.taskId++;
-    if (options.wait !== undefined) {
-      this.pendingTasks.push(newTask);
-    }
+    this.pendingTasks.push(newTask);
     return newTask;
   }
 
@@ -814,14 +812,14 @@ class SagaTester {
     if (!fastestTask) {
       debugDeadlock(this.pendingTasks);
     }
-    const selectedPriority = [0, 'generator', 'race', 'all', 'waiting-children'].includes(fastestTask.wait) ? false : fastestTask.wait;
+    const selectedPriority = [0, undefined, null, 'generator', 'race', 'all', 'waiting-children'].includes(fastestTask.wait) ? false : fastestTask.wait;
 
     // We run all tasks with equivalent weights "simultaneously"
     const tasksToRun = this.pendingTasks.filter((t) => (
       getDependencies(t, this.pendingTasks).length === 0 &&
       (
         selectedPriority === true ||
-        [0, false, 'race', 'all', 'generator', 'waiting-children'].includes(t.wait) ||
+        [0, undefined, null, false, 'race', 'all', 'generator', 'waiting-children'].includes(t.wait) ||
         (typeof selectedPriority === 'number' && typeof t.wait === 'number' && t.wait <= selectedPriority)
       )
     ));
@@ -857,9 +855,7 @@ class SagaTester {
           // eslint-disable-next-line no-param-reassign
           p.interruption.dependencies = p.interruption.dependencies.filter((d) => !finishedIds.includes(d));
         }
-        if (allDependencies.length === ranIds.length && kind === INTERRUPTION_TYPES.WAITING_FOR_CHILDREN) {
-          tasksToRun.push({ task: p, value: undefined });
-        } else if ([INTERRUPTION_TYPES.RACE, INTERRUPTION_TYPES.ALL].includes(kind)) {
+        if ([INTERRUPTION_TYPES.RACE, INTERRUPTION_TYPES.ALL].includes(kind)) {
           // pending is an object or list of interruptions, and if race:one/all:all of they keys/indexes are not interrupted anymore, it must be run.
           Object.keys(pending).forEach((key) => {
             if (pending[key]?.['@@__isComplete__'] || pending[key]?.dependencies == null) { return; }

@@ -1,11 +1,8 @@
+import isGenerator from './helpers/isGenerator';
+
 /* istanbul ignore next */
 function* foo() { /* */ }
-const generatorPrototype = Object.getPrototypeOf(foo);
-const generatorPrototypeName = generatorPrototype.name;
-const isGenerator = (x) => typeof x === 'function' && (
-  /* istanbul ignore next */ (generatorPrototypeName.length > 0 && Object.getPrototypeOf(x).name === generatorPrototypeName) ||
-  /* istanbul ignore next */ (generatorPrototypeName.length === 0 && Object.getPrototypeOf(x) === generatorPrototype)
-);
+
 const giveGeneratorAName = (generator, name) => {
   // eslint-disable-next-line func-names
   const result = function (...args) {
