@@ -70,7 +70,7 @@ describe('debugUnblock', () => {
       debug: {
         unblock: true,
       },
-      options: { yieldDecreasesTimer: true },
+      options: { yieldDecreasesTimer: true, useStaticTimes: true },
     }).run()).toEqual({
       task1: 'arg1-executed-1', // wait 50
       task2: 'arg2-executed-9', // wait: true (aka after everything else)

@@ -47,7 +47,6 @@ TODO:
 --- 1.3.0
 
 TODO:
-- Implement option 'decreaseActiveTaskTimersWhenWaiting', defaults to true, for more intuitive behavior (breaking).
 - Fix race effect not cancelling losing tasks
 - Implement spawn
 - Implement "waitForSpawned" option

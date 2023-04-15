@@ -134,7 +134,7 @@ class SagaTester {
     assert(validActions(expectedActions), err('expectedActions must be an array of object containing either an attribute "type" or "action"'));
     assert(validActions(effectiveActions), err('effectiveActions must be an array of object containing either an attribute "type" or "action"'));
 
-    const { stepLimit = 1000, yieldDecreasesTimer = false } = options;
+    const { stepLimit = 1000, yieldDecreasesTimer = false, useStaticTimes = false } = options;
 
     this.saga = saga;
     this.selectorConfig = selectorConfig;
@@ -152,6 +152,7 @@ class SagaTester {
     this.debug = debug;
     this.stepLimit = stepLimit;
     this.yieldDecreasesTimer = yieldDecreasesTimer;
+    this.useStaticTimes = useStaticTimes;
   }
 
   /**
@@ -813,6 +814,15 @@ class SagaTester {
       debugDeadlock(this.pendingTasks);
     }
     const selectedPriority = [0, undefined, null, 'generator', 'race', 'all', 'waiting-children'].includes(fastestTask.wait) ? false : fastestTask.wait;
+
+    if (!this.useStaticTimes && typeof selectedPriority === 'number' && selectedPriority > 0) {
+      this.pendingTasks.forEach((p) => {
+        if (typeof p.wait === 'number') {
+          // eslint-disable-next-line no-param-reassign
+          p.wait = Math.max(0, p.wait - selectedPriority);
+        }
+      });
+    }
 
     // We run all tasks with equivalent weights "simultaneously"
     const tasksToRun = this.pendingTasks.filter((t) => (

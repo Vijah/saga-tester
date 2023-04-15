@@ -1,9 +1,11 @@
 interface Action<T = any> { type: T }
-type ActionType = { action: Action<any>, times?: number, strict?: boolean } |
-  { type: string, params?: any[], times?: number };
-type CallType = { times?: number, params: any[], output: any } |
-  { times?: number, params: any[], throw: any } |
-  { times?: number, params: any[], call: boolean, wait?: boolean | number };
+type ActionType =
+  { action: Action<any>, times?: number, strict?: boolean } |
+  { type: string, times?: number };
+type CallType =
+  { times?: number, params?: any[], wait?: boolean | number, output?: any } |
+  { times?: number, params?: any[], throw: any } |
+  { times?: number, params?: any[], wait?: boolean | number, call: boolean };
 
 type DebugType = number | string | boolean | (number | string)[];
 
@@ -17,7 +19,7 @@ class SagaTester<Saga> {
       expectedGenerators?: { [P: string]: CallType[] },
       effectiveActions?: Action<any>[],
       debug?: { unblock?: DebugType, bubble?: DebugType, interrupt?: DebugType },
-      options?: { stepLimit?: number, yieldDecreasesTimer?: boolean },
+      options?: { stepLimit?: number, yieldDecreasesTimer?: boolean, useStaticTimes?: boolean },
     },
     shouldAssert?: boolean,
   );

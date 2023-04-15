@@ -10,6 +10,7 @@
 - Add the `config.debug.interrupt` option to log interruptions of tasks, the reasons, and conditions of resuming them.
 - Add the `config.options.stepLimit` option to detect infinite loops faster or slower
 - Add the `config.options.yieldDecreasesTimer` option, which is set to `false` by default to avoid confusing behavior. (This is technically a breaking change if your tests relied on the decreasing step count). If set to `true`, each yield action results in the timer of active tasks to decrease by 1.
+- Add the `config.options.useStaticTimes` option, `false` by default (breaking change). If `false`, whenever a task with a numbered "wait" is run, all other active tasks with a numbered "wait" is decreased by the same amount. If `true`, a numbered "wait" remains static and therefore acts more like a priority.
 - Add `saga-tester/PLACEHOLDER_ARGS`.
   - Provide `PLACEHOLDER_ARGS.ANY` inside a `params` array to indicate an argument that is not important.
   - Provide `PLACEHOLDER_ARGS.TASK` inside a `params` array to indicate a task object of any content.
@@ -18,4 +19,5 @@
 - Implement awaitable calls
 - Fix cancellation not bubbling down parent ownership.
 - Fix cancellation not using "return" and therefore not correctly branching into "finally" statements.
+- More flexible typescript
 

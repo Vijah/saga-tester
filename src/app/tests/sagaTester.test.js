@@ -380,6 +380,9 @@ describe('SagaTester', () => {
             { params: ['arg2-arg2'], call: true, wait: 60 },
           ],
         },
+        options: {
+          useStaticTimes: true,
+        },
       }).run()).toBe(undefined);
       expect(sideEffectMethod).toHaveBeenCalledTimes(4);
       expect(sideEffectMethod).toHaveBeenCalledWith('arg2-arg1-executed-1');
@@ -418,6 +421,9 @@ describe('SagaTester', () => {
             { params: ['arg2-arg1'], call: true },
             { params: ['arg2-arg2'], call: true, wait: 60 },
           ],
+        },
+        options: {
+          useStaticTimes: true,
         },
       }).run()).toEqual(['arg1', 'arg2']);
       expect(sideEffectMethod).toHaveBeenCalledTimes(4);
@@ -474,6 +480,9 @@ describe('SagaTester', () => {
             { params: ['fast-fast-fast'], call: true },
           ],
         },
+        options: {
+          useStaticTimes: true,
+        },
       }).run()).toEqual(['slow-fast-fast-executed-4', 'fast-fast-fast-executed-1']);
       expect(sideEffectMethod).toHaveBeenCalledTimes(8);
       // Times are not additive
@@ -485,6 +494,48 @@ describe('SagaTester', () => {
       expect(sideEffectMethod).toHaveBeenCalledWith('slow-fast-slow-executed-7');
       expect(sideEffectMethod).toHaveBeenCalledWith('slow-slow-fast-executed-5');
       expect(sideEffectMethod).toHaveBeenCalledWith('slow-slow-slow-executed-8');
+    });
+    it('should have parent tasks returning correctly despite waiting for children tasks to finish', () => {
+      let executionOrder = 0;
+      const sideEffectMethod = jest.fn();
+      function* method(arg) {
+        executionOrder += 1;
+        sideEffectMethod(`${arg}-executed-${executionOrder}`);
+      }
+      function* parentMethod(arg) {
+        yield fork(method, `${arg}-arg1`);
+        yield fork(method, `${arg}-arg2`);
+        return arg;
+      }
+
+      function* saga() {
+        const task1 = yield fork(parentMethod, 'arg1');
+        const task2 = yield fork(parentMethod, 'arg2');
+        return yield join([task1, task2]);
+      }
+
+      expect(new SagaTester(saga, {
+        expectedGenerators: {
+          parentMethod: [
+            { params: ['arg1'], call: true, wait: 50 },
+            { params: ['arg2'], call: true },
+          ],
+          method: [
+            { params: ['arg1-arg1'], call: true, wait: 25 },
+            { params: ['arg1-arg2'], call: true },
+            { params: ['arg2-arg1'], call: true },
+            { params: ['arg2-arg2'], call: true, wait: 60 },
+          ],
+        },
+        options: {
+          useStaticTimes: false,
+        },
+      }).run()).toEqual(['arg1', 'arg2']);
+      expect(sideEffectMethod).toHaveBeenCalledTimes(4);
+      expect(sideEffectMethod).toHaveBeenCalledWith('arg2-arg1-executed-1');
+      expect(sideEffectMethod).toHaveBeenCalledWith('arg1-arg2-executed-2');
+      expect(sideEffectMethod).toHaveBeenCalledWith('arg1-arg1-executed-4');
+      expect(sideEffectMethod).toHaveBeenCalledWith('arg2-arg2-executed-3'); // Because the times are additive
     });
     it('should end forked tasks in the correct order when they are yielded simultaneously inside an all effect', () => {
       let executionOrder = 0;
@@ -546,6 +597,9 @@ describe('SagaTester', () => {
         expectedCalls: {
           calledMethod: [{ params: ['arg8'], call: true }],
           deeplyNestedMethod: [{ call: true }],
+        },
+        options: {
+          useStaticTimes: true,
         },
       }).run()).toEqual({
         task1: 'arg1-executed-1', // wait 50
@@ -737,6 +791,9 @@ describe('SagaTester', () => {
             { params: ['arg2'], call: true, wait: 150 },
           ],
         },
+        options: {
+          useStaticTimes: true,
+        },
       }).run()).toEqual([
         [ // The parent task is executed instantly, but resolves second since its inner tasks are slower
           'arg1-1-childOrder-2-parentOrder-2',
@@ -783,6 +840,9 @@ describe('SagaTester', () => {
             { params: ['arg2'], call: true, wait: 150 },
             { params: ['mocked'], output: 'mocked-output', wait: 10 },
           ],
+        },
+        options: {
+          useStaticTimes: true,
         },
       }).run()).toEqual([
         [ // The parent task is executed instantly, but resolves second since its inner tasks are slower
