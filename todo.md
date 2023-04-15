@@ -47,7 +47,6 @@ TODO:
 --- 1.3.0
 
 TODO:
-- Fix race effect not cancelling losing tasks
 - Implement spawn
 - Implement "waitForSpawned" option
 - Update README with new features (esp. concurrency behavior, options section and debug section).

@@ -617,28 +617,65 @@ describe('SagaTester', () => {
         task8: 'calledMethod-arg8-executed-7', // wait 110, nested within an instantaneous call
       });
     });
-    it('should end forked tasks in the correct order when they are yielded simultaneously inside a race effect', () => {
+    it('should end forked tasks in the correct order when they are yielded simultaneously inside a race effect - losing tasks should be cancelled', () => {
       let executionOrder = 0;
       function* method(arg) {
-        executionOrder += 1;
-        return `${arg}-executed-${executionOrder}`;
+        let response;
+        try {
+          yield put({ type: 'method-entered' });
+          executionOrder += 1;
+          response = `${arg}-executed-${executionOrder}`;
+        } finally {
+          if (yield cancelled()) {
+            yield put({ type: 'method-cancelled', arg });
+          }
+          // eslint-disable-next-line no-unsafe-finally
+          return response;
+        }
       }
       function* deeplyNestedMethod() {
-        const task = yield fork(method, 'deep');
-        return yield join(task);
+        let response;
+        try {
+          const task = yield fork(method, 'deep');
+          response = yield join(task);
+        } finally {
+          if (yield cancelled()) {
+            yield put({ type: 'deeplyNestedMethod-cancelled' });
+          }
+          // eslint-disable-next-line no-unsafe-finally
+          return response;
+        }
       }
       function* methodNested(arg) {
-        const task1 = yield fork(method, arg);
-        const task2 = yield fork(method, 'arg7');
-        const callResult = yield call(deeplyNestedMethod);
-        const results = yield join([task1, task2]);
-        results.push(callResult);
-        return results;
+        let response;
+        try {
+          const task1 = yield fork(method, arg);
+          const task2 = yield fork(method, 'arg7');
+          const callResult = yield call(deeplyNestedMethod);
+          const results = yield join([task1, task2]);
+          results.push(callResult);
+          response = results;
+        } finally {
+          if (yield cancelled()) {
+            yield put({ type: 'methodNested-cancelled', arg });
+          }
+          // eslint-disable-next-line no-unsafe-finally
+          return response;
+        }
       }
       function* calledMethod(arg) {
-        const task = yield fork(method, arg);
-        const taskResult = yield join([task]);
-        return `calledMethod-${taskResult[0]}`;
+        let response;
+        try {
+          const task = yield fork(method, arg);
+          const taskResult = yield join([task]);
+          response = `calledMethod-${taskResult[0]}`;
+        } finally {
+          if (yield cancelled()) {
+            yield put({ type: 'calledMethod-cancelled', arg });
+          }
+          // eslint-disable-next-line no-unsafe-finally
+          return response;
+        }
       }
       const mockMethodNested = mockGenerator(methodNested);
 
@@ -678,6 +715,16 @@ describe('SagaTester', () => {
           calledMethod: [{ params: ['arg8'], call: true }],
           deeplyNestedMethod: [{ call: true }],
         },
+        expectedActions: [
+          { action: { type: 'method-cancelled', arg: 'arg2' }, times: 1, strict: true },
+          { action: { type: 'method-cancelled', arg: 'arg3' }, times: 1, strict: true },
+          { action: { type: 'method-cancelled', arg: 'arg4' }, times: 1, strict: true },
+          { action: { type: 'method-cancelled', arg: 'arg5' }, times: 1, strict: true },
+          { action: { type: 'method-cancelled', arg: 'deep' }, times: 1, strict: true },
+          { type: 'deeplyNestedMethod-cancelled', times: 1 },
+          { type: 'methodNested-cancelled', times: 1 },
+          { type: 'calledMethod-cancelled', times: 0 },
+        ],
         options: { yieldDecreasesTimer: true },
       }).run()).toEqual({
         task1: 'arg1-executed-3', // wait 200

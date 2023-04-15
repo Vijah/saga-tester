@@ -19,5 +19,6 @@
 - Implement awaitable calls
 - Fix cancellation not bubbling down parent ownership.
 - Fix cancellation not using "return" and therefore not correctly branching into "finally" statements.
+- Fix race effect not cancelling losing tasks
 - More flexible typescript
 

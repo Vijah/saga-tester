@@ -431,21 +431,7 @@ class SagaTester {
     } else {
       cancelledTasks.push(payload);
     }
-    const ignores = [];
-    const recursiveCancelTasks = (t) => {
-      ignores.push(t);
-      // eslint-disable-next-line no-param-reassign
-      t.isCancelled = true;
-      if (t.wait === true || typeof t.wait === 'number') {
-        // eslint-disable-next-line no-param-reassign
-        t.wait = 0;
-      }
-      this.pendingTasks.forEach((c) => {
-        if (c.parentTask !== t || ignores.includes(c)) { return; } // Children indicate dependencies, not ownership.
-        recursiveCancelTasks(c);
-      });
-    };
-    cancelledTasks.forEach(recursiveCancelTasks);
+    cancelledTasks.forEach(this.recursiveCancelTasks());
 
     if (payload === '@@redux-saga/SELF_CANCELLATION') {
       return makeInterruption(currentTask, undefined, INTERRUPTION_TYPES.WAITING_FOR_CHILDREN, currentTask.id, this.debug?.interrupt);
@@ -815,15 +801,6 @@ class SagaTester {
     }
     const selectedPriority = [0, undefined, null, 'generator', 'race', 'all', 'waiting-children'].includes(fastestTask.wait) ? false : fastestTask.wait;
 
-    if (!this.useStaticTimes && typeof selectedPriority === 'number' && selectedPriority > 0) {
-      this.pendingTasks.forEach((p) => {
-        if (typeof p.wait === 'number') {
-          // eslint-disable-next-line no-param-reassign
-          p.wait = Math.max(0, p.wait - selectedPriority);
-        }
-      });
-    }
-
     // We run all tasks with equivalent weights "simultaneously"
     const tasksToRun = this.pendingTasks.filter((t) => (
       getDependencies(t, this.pendingTasks).length === 0 &&
@@ -836,6 +813,15 @@ class SagaTester {
     if (debugShouldApply(tasksToRun, this.debug.unblock)) {
       // eslint-disable-next-line no-console
       console.log(debugUnblock(tasksToRun, this.pendingTasks));
+    }
+
+    if (!this.useStaticTimes && typeof selectedPriority === 'number' && selectedPriority > 0) {
+      this.pendingTasks.forEach((p) => {
+        if (typeof p.wait === 'number') {
+          // eslint-disable-next-line no-param-reassign
+          p.wait = Math.max(0, p.wait - selectedPriority);
+        }
+      });
     }
 
     tasksToRun.forEach((t) => {
@@ -851,6 +837,8 @@ class SagaTester {
 
   bubbleUpFinishedTask(finishedTasks) {
     const tasksToRun = [];
+    const cancelledTasks = [];
+
     if (debugShouldApply(finishedTasks, this.debug.bubble)) {
       // eslint-disable-next-line no-console
       console.log(debugBubbledTasks(finishedTasks, this.pendingTasks));
@@ -898,6 +886,7 @@ class SagaTester {
             // Task is ready to complete! Remove incomplete tasks and unwrap results before resolving them
             Object.keys(pending).forEach((key) => {
               if (pending[key]?.value === __INTERRUPT__) {
+                cancelledTasks.push(pending[key].origin);
                 pending[key] = undefined;
               } else if (pending[key]?.['@@__isComplete__']) {
                 pending[key] = pending[key].result;
@@ -924,6 +913,35 @@ class SagaTester {
       }
     });
 
+    if (cancelledTasks.length > 0) {
+      let tasksToCancel = [];
+      cancelledTasks.forEach((id) => {
+        const task = this.pendingTasks.find((p) => p.id === id);
+        if (tasksToCancel.includes(task)) {
+          return;
+        }
+        tasksToCancel.push(task);
+      });
+
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const count = tasksToCancel.length;
+        for (let i = 0; i < this.pendingTasks.length; i++) {
+          const p = this.pendingTasks[i];
+          if (
+            !tasksToCancel.includes(p) &&
+            tasksToCancel.some((t) => t === p.parentTask || getDependencies(t, this.pendingTasks).includes(p.id))
+          ) {
+            tasksToCancel.unshift(p);
+          }
+        }
+        if (count === tasksToCancel.length) { break; }
+      }
+      tasksToCancel = tasksToCancel.filter((t) => !tasksToRun.some(({ task }) => task.id === t.id));
+      tasksToCancel.forEach(this.recursiveCancelTasks());
+      tasksToCancel.forEach((t) => { this.runTask(t); });
+    }
+
     tasksToRun.forEach(({ task, value }) => {
       if (task.id === 0) {
         // eslint-disable-next-line no-param-reassign
@@ -942,6 +960,21 @@ class SagaTester {
       this.cleanupRanTasks();
       this.bubbleUpFinishedTask(completedTasks.map((t) => t.task));
     }
+  }
+
+  recursiveCancelTasks(ignores = []) {
+    return (t) => {
+      // eslint-disable-next-line no-param-reassign
+      t.isCancelled = true;
+      if (t.wait === true || typeof t.wait === 'number') {
+        // eslint-disable-next-line no-param-reassign
+        t.wait = 0;
+      }
+      this.pendingTasks.forEach((c) => {
+        if (c.parentTask !== t || ignores.includes(c)) { return; } // Children indicate dependencies, not ownership.
+        this.recursiveCancelTasks([...ignores, t])(c);
+      });
+    };
   }
 
   cleanupRanTasks() {
