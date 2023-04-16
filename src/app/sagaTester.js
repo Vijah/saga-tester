@@ -655,7 +655,6 @@ class SagaTester {
 
   triggerNextStepWithResult = (matchedCall, generator, options, effectPayload, subGenerator) => {
     const { isTask, currentTask, isBoundToParent, wait, name } = options;
-
     if (isGenerator(effectPayload?.fn)) {
       // eslint-disable-next-line no-param-reassign
       subGenerator = executeFn(effectPayload);
@@ -699,7 +698,7 @@ class SagaTester {
     }
 
     if (isTask) {
-      result = this.makeNewTask({ result: matchedCall.output, wait: undefined, parentTask: currentTask, name });
+      result = this.makeNewTask({ result: matchedCall.output, wait, parentTask: currentTask, name });
     } else if (![false, null, undefined].includes(wait)) {
       result = this.makeNewTask({ result: matchedCall.output, wait, parentTask: currentTask, name });
       return makeInterruption(currentTask, undefined, INTERRUPTION_TYPES.GENERATOR, result.id, this.debug?.interrupt);

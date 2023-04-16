@@ -617,6 +617,47 @@ describe('SagaTester', () => {
         task8: 'calledMethod-arg8-executed-7', // wait 110, nested within an instantaneous call
       });
     });
+    it('should cancel tasks which lose within a race, and cancel it correctly when it loses multiple times', () => {
+      function* method() {
+        try {
+          yield put({ type: 'method-entered' });
+        } finally {
+          if (yield cancelled()) {
+            yield put({ type: 'method-cancelled' });
+          }
+        }
+      }
+      function* methodNested(task) {
+        try {
+          yield join([task, task]);
+        } finally {
+          if (yield cancelled()) {
+            yield put({ type: 'methodNested-cancelled' });
+          }
+        }
+      }
+      function* saga() {
+        const task = yield fork(method);
+        const nestedTask = yield fork(methodNested, task);
+        yield race([
+          join(task),
+          delay(1),
+          join(task),
+          join(nestedTask),
+        ]);
+      }
+
+      new SagaTester(saga, {
+        expectedGenerators: {
+          method: [{ times: 1, wait: true, call: true }],
+          methodNested: [{ times: 1, wait: false, call: true }],
+        },
+        expectedActions: [
+          { type: 'method-cancelled', times: 1 },
+          { type: 'methodNested-cancelled', times: 1 },
+        ],
+      }).run();
+    });
     it('should end forked tasks in the correct order when they are yielded simultaneously inside a race effect - losing tasks should be cancelled', () => {
       let executionOrder = 0;
       function* method(arg) {
