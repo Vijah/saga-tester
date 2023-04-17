@@ -134,7 +134,12 @@ class SagaTester {
     assert(validActions(expectedActions), err('expectedActions must be an array of object containing either an attribute "type" or "action"'));
     assert(validActions(effectiveActions), err('effectiveActions must be an array of object containing either an attribute "type" or "action"'));
 
-    const { stepLimit = 1000, yieldDecreasesTimer = false, useStaticTimes = false } = options;
+    const {
+      stepLimit = 1000,
+      yieldDecreasesTimer = false,
+      useStaticTimes = false,
+      waitForSpawned = false,
+    } = options;
 
     this.saga = saga;
     this.selectorConfig = selectorConfig;
@@ -153,6 +158,7 @@ class SagaTester {
     this.stepLimit = stepLimit;
     this.yieldDecreasesTimer = yieldDecreasesTimer;
     this.useStaticTimes = useStaticTimes;
+    this.waitForSpawned = waitForSpawned;
   }
 
   /**
@@ -406,7 +412,7 @@ class SagaTester {
         subGenerator.name = methodName;
         subGenerator.args = currentResult.value.payload.args;
       }
-      return this.processSubGenerators(generator, subGenerator, { ...options, isTask: true, isBoundToParent: currentResult.value.type === 'FORK' });
+      return this.processSubGenerators(generator, subGenerator, { ...options, isTask: true, isBoundToParent: currentResult.value.payload?.detached !== true });
     }
     if (currentResult.value.type === 'TAKE') {
       return this.processTake(generator, currentResult.value, options);
@@ -671,6 +677,8 @@ class SagaTester {
         const task = this.makeNewTask({ wait: typeof wait === 'number' ? wait + 1 : wait, generator: subGenerator, name });
         if (isBoundToParent) {
           task.parentTask = currentTask;
+        } else if (this.waitForSpawned) {
+          task.parentTask = this.pendingTasks.find((p) => p.id === 0);
         }
         if ([false, null, undefined].includes(wait)) {
           this.runTask(task);

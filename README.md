@@ -3,13 +3,14 @@
 A tester library for redux-saga, offering the following features:
 
 - Is order-independent (changing yield order does not break the test, making your tests less fragile).
-- Handles the following redux-saga/effects: put, putResolve, select, call, apply, all, race, retry, take, takeLatest, takeEvery, takeLeading, throttle, debounce, fork, delay, cancel, cancelled, join.
+- Handles the following redux-saga/effects: put, putResolve, select, call, apply, all, race, retry, take, takeLatest, takeEvery, takeLeading, throttle, debounce, fork, spawn, delay, cancel, cancelled, join.
 - Runs the entire generator method from start to finish with one holistic config.
 - Is indirectly a generator function tester.
 
 It has the following limitations:
 
-- Does not handle concurrent executions or concurrent logic.
+- Does not handle action propagation (coming in 1.4.0).
+- Is in ECMA6 and not transpiled (this will change in 2.0.0)
 - Does not handle channels and other advanced saga features to handle complex concurrent behavior.
 
 ## Package usage
@@ -181,6 +182,38 @@ import { PLACEHOLDER_ARGS } from 'saga-tester';
 - `PLACEHOLDER_ARGS.TYPE(type)` inside a `params` array to indicate a value of `typeof type`.
 - `PLACEHOLDER_ARGS.FN((value) => boolean)` inside a `params` array to indicate a value for which the method returns true.
 
+## Concurrent execution
+
+While SagaTester seeks to be order-independent, it does simulate concurrently executing tasks, and these tasks can be said to execute within a certain delay, which can cause them to execute in a specific order.
+
+Any `call`, `fork`, or `spawn` can be mocked using `expectedGenerators` or `expectedCalls`, and the parameter `wait` can be provided to indicate that some virtual time should elapse before the resulting work should be executed.
+
+- If `wait` is falsey, the work will be ran immediately.
+- If it is a `number`, it will wait that given number.
+- If it is `true`, it will be ran only when all other tasks which can be run have ran.
+- All pending work with identical `wait` are ran simultaneously.
+
+The supported saga effects simulate `redux-saga` behavior, meaning that:
+
+- a task will wait for a `join` to resolve,
+- a task will wait for `fork`'ed tasks to finish before resolving, but not `spawn`'ed tasks.
+- cancellation will spread to the children
+- `all` will await all of its children.
+- `race` resolves when one of its children completes, and cancels all of the losers.
+- `delay(time)` acts as a task with `wait: time`.
+- When multiple tasks are blocked, the fastest task (lowest `wait`) is ran.
+
+A current limitation is that `take`, `debounce`, `takeLatest`, `takeEvery`, `takeLeading` and `throttle` do not behave concurrently; they will merely be executed instantly if a matching action is found. Likewise, `putResolve` does not wait for anything. This will be adjusted in 1.4.0.
+
+### config.options
+
+These offer additional hooks to modify how sagaTester runs.
+
+- `config.options.stepLimit`, default: `1000`. When sagaTester has ran for this many steps, it fails. This helps detect infinite loops.
+- `config.options.yieldDecreasesTimer`, default: `false`. If true, each step decreases the times of active tasks by 1 (deprecated).
+- `config.options.usePriorityConcurrency`, default: `false`. If `false`, when e.g. `task1.wait = 40` runs while `task2.wait = 60` is pending, `task2` will be lowered to `wait = 20` (60 - 40 = 20). If `usePriorityConcurrency` is `true`, task timers are not lowered, and instead act like priority weights.
+- `config.options.waitForSpawned`, default: `false`. If `false`, a spawned task will only resolve if it is fast enough to run during the execution of the parent saga. If `true`, each spawned task is awaited when the parent saga finishes, and sagaTester only completes when all spawned tasks have resolved.
+
 ### Run without failing
 
 In rare cases, you might want to run the saga without causing failures.
@@ -193,60 +226,7 @@ expect(tester.returnValue).toBe('something');
 expect(tester.errorList.length).toBe(0);
 ```
 
-## Concurrent execution
-
-While SagaTester seeks to be order-independent, certain features are provided to facilitate certain simple out-of-order behavior.
-
-These features are specific to `fork` effects. These effects create a pseudo-task during execution, and this pseudo-task is executed either immediately, when it is joined, or after a given amount of `yield` steps (`yield*` does not count). In order to defer execution, you must:
-
-- Mock the generator using `mockGenerator`
-- Configure `expectedGenerators` with the property `wait`; (`false` means instantaneous execution, `true` means wait until `join`, and a `number` means wait under a given amount of steps).
-
-Delaying the execution of `fork`ed tasks allows testing the behavior of sub-tasks which are, for instance, `cancel`led by the parent or itself. This allows support of `cancel` and `cancelled` effects.
-
-Furthermore, when inside a `join` containing a list of tasks, or within a `race` or `all` containing multiple joins, the pseudo-tasks are set to finish in the configured order. This also works for tasks which are forked inside another `fork` or a `call`. `delay` effects behaves like a pseudo-task set to wait for that amount.
-
-A current limitation is that `debounce`, `takeLatest`, `takeEvery`, `takeLeading` and `throttle` do not behave concurrently; they will merely be executed instantly if a matching action is found.
-
-Example from the unit tests (using `options.yieldDecreasesTimer`):
-
-```js
-it('should treat fork as if creating a task with the given output, deferring its execution, and handling cancellation status', () => {
-  let executionOrder = 0;
-  function* method(arg) {
-    executionOrder += 1;
-    return `${arg}-executed-${executionOrder}`;
-  }
-  const mockMethod = mockGenerator(method);
-
-  function* saga() {
-    const task1 = yield fork(mockMethod, 'arg1');
-    const task2 = yield fork(mockMethod, 'arg2');
-    const task3 = yield fork(mockMethod, 'arg3');
-    const task4 = yield fork(mockMethod, 'arg4');
-    return yield join([task1, task2, task3, task4]);
-  }
-
-  expect(new SagaTester(saga, {
-    expectedGenerators: {
-      method: [
-        { params: ['arg1'], call: true, wait: 1 },
-        { params: ['arg2'], call: true },
-        { params: ['arg3'], call: true, wait: 99 },
-        { params: ['arg4'], call: true, wait: 50 },
-      ],
-    },
-    options: { yieldDecreasesTimer: true },
-  }).run()).toEqual([
-    'arg1-executed-2', // Delayed by one; executed after task2
-    'arg2-executed-1', // wait is false by default; executed instantly
-    'arg3-executed-4', // Terminated by joint, but after task 3 because wait is higher
-    'arg4-executed-3',
-  ]);
-});
-```
-
-## Debugging
+### Debugging
 
 The `config` of the tester can contain a property `debug` which has options determining what to log.
 
@@ -262,10 +242,7 @@ The value of each debug property can be: `true`, `false`, a `number` representin
 
 SagaTester was designed to be detached from as many dependencies as possible.
 The need for maintenance in this library is not large, including `pretty-format`, `jest-diff`, `lodash.isequal`
-and indirectly (via matching string literals), `redux-saga` and `reselect`.
-
-Tthe package is simple and should be able to adjust to external changes.
-The package is expected to remain in ES6 since it is a strictly test-side library.
+and indirectly (via matching string literals and api-mock-up), `redux-saga` and `reselect`.
 
 ### Possible future features 
 

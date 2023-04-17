@@ -13,13 +13,22 @@ class SagaTester<Saga> {
   constructor(
     saga: Saga,
     config?: {
-      selectorConfig?: { [P: string]: any },
-      expectedActions?: ActionType[],
-      expectedCalls?: { [P: string]: CallType[] },
-      expectedGenerators?: { [P: string]: CallType[] },
-      effectiveActions?: Action<any>[],
-      debug?: { unblock?: DebugType, bubble?: DebugType, interrupt?: DebugType },
-      options?: { stepLimit?: number, yieldDecreasesTimer?: boolean, useStaticTimes?: boolean },
+      selectorConfig?: { [P: string]: any };
+      expectedActions?: ActionType[];
+      expectedCalls?: { [P: string]: CallType[] };
+      expectedGenerators?: { [P: string]: CallType[] };
+      effectiveActions?: Action<any>[];
+      debug?: {
+        unblock?: DebugType;
+        bubble?: DebugType;
+        interrupt?: DebugType;
+      };
+      options?: {
+        stepLimit?: number;
+        yieldDecreasesTimer?: boolean;
+        useStaticTimes?: boolean;
+        waitForSpawned?: boolean;
+      };
     },
     shouldAssert?: boolean,
   );

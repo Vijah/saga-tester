@@ -42,11 +42,5 @@ TODO:
 - Test which demonstrates a throttled generator is not called again if the call is within a certain time limit, but is called again when called passed this time limit.
 - Implement takeMaybe and END action
 - Test ???
+- Modify `putResolve` to await any tasks resulting from the action
 - Update README with new features.
-
---- 1.3.0
-
-TODO:
-- Implement spawn
-- Implement "waitForSpawned" option
-- Update README with new features (esp. concurrency behavior, options section and debug section).
