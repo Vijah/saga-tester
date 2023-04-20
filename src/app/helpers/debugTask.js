@@ -2,6 +2,9 @@ import __INTERRUPT__ from './__INTERRUPT__';
 import debugTaskHeader from './debugTaskHeader';
 
 const debugTask = (t) => {
+  if (t['@@redux-saga/TASK'] !== true) {
+    return t.type; // We're logging an action pattern
+  }
   const header = debugTaskHeader(t);
   let value = '';
   if (t.result !== undefined && t.result?.value !== __INTERRUPT__) {

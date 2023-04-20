@@ -113,15 +113,50 @@ describe('SagaTester', () => {
       expect(() => new SagaTester(saga, { expectedGenerators: { asd: {} } })).toThrow('expectedGenerators must be an object containing arrays');
 
       function* sagaWithTakeLatest() { yield takeLatest('TYPE', saga); }
-      expect(() => new SagaTester(sagaWithTakeLatest, {}).run()).toThrow('Error in the configuration of SagaTester: Found a takeLatest action, but no actions in the context of the saga. Either pass an action as the only parameter to your saga or define effectiveActions in your configs.');
+      expect(() => new SagaTester(sagaWithTakeLatest, {}).run()).not.toThrow();
       function* sagaWithTakeEvery() { yield takeEvery('TYPE', saga); }
-      expect(() => new SagaTester(sagaWithTakeEvery, {}).run()).toThrow('Error in the configuration of SagaTester: Found a takeEvery action, but no actions in the context of the saga. Either pass an action as the only parameter to your saga or define effectiveActions in your configs.');
+      expect(() => new SagaTester(sagaWithTakeEvery, {}).run()).not.toThrow();
       function* sagaWithTakeLeading() { yield takeLeading('TYPE', saga); }
-      expect(() => new SagaTester(sagaWithTakeLeading, {}).run()).toThrow('Error in the configuration of SagaTester: Found a takeLeading action, but no actions in the context of the saga. Either pass an action as the only parameter to your saga or define effectiveActions in your configs.');
+      expect(() => new SagaTester(sagaWithTakeLeading, {}).run()).not.toThrow();
 
       function* sagaWithTake() { yield take('TYPE'); }
-      expect(() => new SagaTester(sagaWithTake, {}).run()).toThrow('Error in the configuration of SagaTester: Found a take action, but no actions in the context of the saga. Either pass an action as the only parameter to your saga or define effectiveActions in your configs.');
-      expect(() => new SagaTester(sagaWithTake, {}).run({ type: 'NO' })).toThrow('Error in the configuration of SagaTester: Found a take action looking for an action of type TYPE, but no such effectiveAction exists. Add this action in the effectiveActions config to solve this issue.');
+
+      const expectedError = `Error was thrown while running SagaTester (step 1).
+
+Error: Deadlock: 1 tasks did not finish. Remaining tasks:
+
+[
+  {
+    "@@redux-saga/TASK": true,
+    "isCancelled": false,
+    "id": 0,
+    "wait": "generator",
+    "name": "root",
+    "started": true,
+    "latestValue": "TAKE",
+    "interruption": {
+      "kind": "@@sagaTester__take__"
+    },
+    "dependencies": [
+      "TYPE"
+    ]
+  }
+]`.replace(/\r\n/g, '\n');
+      let error = '';
+      try {
+        new SagaTester(sagaWithTake, {}).run();
+      } catch (e) {
+        error = e.message;
+      }
+      expect(error.replace(/\r\n/g, '\n').substring(0, expectedError.length)).toBe(expectedError);
+
+      error = '';
+      try {
+        new SagaTester(sagaWithTake, {}).run({ type: 'NO' });
+      } catch (e) {
+        error = e.message;
+      }
+      expect(error.replace(/\r\n/g, '\n').substring(0, expectedError.length)).toBe(expectedError);
     });
   });
 
@@ -1160,7 +1195,7 @@ describe('SagaTester', () => {
       const effectiveAction = { type: 'TYPE' };
       const config = {
         expectedCalls: { method1: [{ times: 1, params: ['arg1'], output: 'arg1' }], method2: [{ times: 1, params: ['arg2'], output: 'arg2' }] },
-        effectiveActions: [effectiveAction],
+        effectiveActions: [effectiveAction, effectiveAction, effectiveAction],
       };
 
       // Run the saga

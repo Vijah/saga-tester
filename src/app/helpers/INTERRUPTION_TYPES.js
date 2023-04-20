@@ -4,6 +4,7 @@ const INTERRUPTION_TYPES = {
   JOIN: '@@sagaTester__join__',
   RACE: '@@sagaTester__race__',
   ALL: '@@sagaTester__all__',
+  TAKE: '@@sagaTester__take__',
 };
 
 export default INTERRUPTION_TYPES;

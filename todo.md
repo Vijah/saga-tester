@@ -22,13 +22,11 @@ TODO:
 - cleanup api by merging expectedGenerators and expectedCalls into one config.
 - make 'expectedCalls' a list of objects with a name property, so it better resembles the expectedAction config (less confusing)
 - Transpile to ECMA 5 so the project runs regardless of the environment. Move the untransformed code inside an /es/ subfolder in the build so the user can choose.
+- move __passOnUndefined to options.
 
 --- 1.4.0
 
 TODO:
-- Concurrent take behavior.
-- Test with two parallel tasks that keep pending and putting actions.
-- Deadlock test.
 - Concurrent takeLatest behavior.
 - Test demonstrating a takeLatest generator is cancelled when an action is put while the generator is still running.
 - Concurrent takeEvery behavior.

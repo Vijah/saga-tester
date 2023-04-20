@@ -7,11 +7,13 @@ import debugShouldApply from './helpers/debugShouldApply';
 import debugUnblock from './helpers/debugUnblock';
 import getDependencies from './helpers/getDependencies';
 import INTERRUPTION_TYPES from './helpers/INTERRUPTION_TYPES';
+import isArrayEmpty from './helpers/isArrayEmpty';
 import isGenerator from './helpers/isGenerator';
 import makeInterruption from './helpers/makeInterruption';
 import paramsMatch from './helpers/paramsMatch';
 import sortTaskPriority from './helpers/sortTaskPriority';
 import __INTERRUPT__ from './helpers/__INTERRUPT__';
+import doesActionMatch from './helpers/doesActionMatch';
 
 const assert = (condition, message) => {
   if (!condition) {
@@ -31,16 +33,6 @@ const clone = (value) => {
   const newValue = {};
   Object.keys(value).forEach((k) => { newValue[k] = clone(value[k]); });
   return newValue;
-};
-
-const isArrayEmpty = (arr) => {
-  if (arr == null) {
-    return true;
-  }
-  if (arr.length === 0) {
-    return true;
-  }
-  return false;
 };
 
 /**
@@ -214,7 +206,7 @@ class SagaTester {
     this.args = args;
     if (isArrayEmpty(this.effectiveActions)) {
       if (args[0] == null || (typeof args[0] === 'object' && args[0].type === undefined)) {
-        this.actions = undefined;
+        this.actions = [];
       } else {
         this.actions = [args[0]];
       }
@@ -293,7 +285,7 @@ class SagaTester {
    * - resumeValue: undefined by default. If true, replaces the first next call by this value.
    * - name: Name for the generator's task, for debug purposes. Corresponds to the name of the generator.
    */
-  processGenerator(generator, options = {}) {
+  processGenerator(generator, options) {
     let { currentTask } = options;
     const { parentTask, isResuming, resumeValue, name } = options;
     let nextResult;
@@ -335,22 +327,21 @@ class SagaTester {
       throw e;
     }
 
-    if (currentTask.generator === generator) {
-      const dependencies = this.pendingTasks.filter((p) => p.parentTask?.id === currentTask.id).map((p) => p.id);
-      if (dependencies.length === 0) {
-        currentTask.wait = false;
-      } else {
-        currentTask.wait = 'waiting-children';
-      }
-      currentTask.result = nextResult.value;
-      if (currentTask.wait === false && this.pendingTasks.includes(currentTask)) {
-        this.cleanupRanTasks();
-      }
-      if (currentTask.id === 0 && currentTask.wait) {
-        this.handleInterruption(currentTask);
-      } else if (currentTask.wait) {
-        return makeInterruption(currentTask, undefined, INTERRUPTION_TYPES.WAITING_FOR_CHILDREN, dependencies, this.debug?.interrupt);
-      }
+    // Cleanup now that the generator ended, or make it wait after its children
+    const dependencies = this.pendingTasks.filter((p) => p.parentTask?.id === currentTask.id).map((p) => p.id);
+    if (dependencies.length === 0) {
+      currentTask.wait = false;
+    } else {
+      currentTask.wait = 'waiting-children';
+    }
+    currentTask.result = nextResult.value;
+    if (currentTask.wait === false && this.pendingTasks.includes(currentTask)) {
+      this.cleanupRanTasks();
+    }
+    if (currentTask.id === 0 && currentTask.wait) {
+      this.handleInterruption(currentTask);
+    } else if (currentTask.wait) {
+      return makeInterruption(currentTask, undefined, INTERRUPTION_TYPES.WAITING_FOR_CHILDREN, dependencies, this.debug?.interrupt);
     }
 
     return nextResult.value;
@@ -399,7 +390,7 @@ class SagaTester {
       return this.processPutEffect(generator, currentResult.value, options);
     }
     if (currentResult.value.type === 'FORK' && ['takeLeading', 'takeLatest', 'takeEvery', 'debounceHelper', 'throttle'].includes(currentResult.value.payload.fn.name)) {
-      return this.processActionMatchingTakeVerbs(generator, currentResult.value, options);
+      return this.processActionMatchingTakeEffects(generator, currentResult.value, options);
     }
     if (currentResult.value.type === 'FORK') {
       if (currentResult.value.payload.context != null) {
@@ -534,13 +525,13 @@ class SagaTester {
       }
     }
 
+    this.bubbleUpFinishedTask([], [action]);
+
     return this.nextOrReturn(generator, undefined, options);
   }
 
-  processActionMatchingTakeVerbs(generator, value, options) {
-    const { isRacing } = options;
-    const methodName = value.payload.fn.name;
-    assert(isRacing || this.actions !== undefined, `Error in the configuration of SagaTester: Found a ${methodName} action, but no actions in the context of the saga. Either pass an action as the only parameter to your saga or define effectiveActions in your configs.`);
+  processActionMatchingTakeEffects(generator, value, options) {
+    // const methodName = value.payload.fn.name;
     const { args } = value.payload;
     let type;
     let method;
@@ -564,15 +555,25 @@ class SagaTester {
   }
 
   processTake(generator, value, options) {
-    const { isRacing } = options;
-    assert(isRacing || this.actions !== undefined, 'Error in the configuration of SagaTester: Found a take action, but no actions in the context of the saga. Either pass an action as the only parameter to your saga or define effectiveActions in your configs.');
-    const { pattern } = value.payload;
-    if (pattern === '*') {
-      return this.nextOrReturn(generator, this.actions[0], options);
+    const { currentTask } = options;
+    let { pattern } = value.payload;
+    // This weird line is to fit the description of the redux-saga doc on "take", while not stringifying every function patterns.
+    if (typeof pattern === 'number' || (typeof pattern === 'function' && pattern?.toString?.toString && pattern.toString.toString().indexOf('[native code]') < 0)) {
+      pattern = pattern.toString();
     }
-    const listOfMatchers = Array.isArray(pattern) ? pattern : [pattern];
-    const matchedAction = isArrayEmpty(this.actions) ? undefined : this.actions.find((action) => listOfMatchers.includes(action.type));
-    assert(isRacing || matchedAction !== undefined, `Error in the configuration of SagaTester: Found a take action looking for an action of type ${pattern}, but no such effectiveAction exists. Add this action in the effectiveActions config to solve this issue.`);
+    if (Array.isArray(pattern)) {
+      pattern = pattern.map((p) => {
+        if (typeof p === 'number' || (typeof p === 'function' && p?.toString?.toString && p.toString.toString().indexOf('[native code]') < 0)) {
+          return p.toString();
+        }
+        return p;
+      });
+    }
+    const matchedAction = this.actions.find((a) => doesActionMatch(a, pattern));
+    if (matchedAction === undefined) {
+      return makeInterruption(currentTask, undefined, INTERRUPTION_TYPES.TAKE, pattern, this.debug?.interrupt);
+    }
+    this.actions = this.actions.filter((a) => a !== matchedAction);
     return this.nextOrReturn(generator, matchedAction, options);
   }
 
@@ -624,7 +625,7 @@ class SagaTester {
 
       Object.keys(results)
         .filter((key) => results[key]?.value === __INTERRUPT__ && results[key]?.dependencies)
-        .map((key) => (Array.isArray(results[key].dependencies) ? results[key].dependencies : [results[key].dependencies]))
+        .map((key) => [results[key].dependencies])
         .forEach((deps) => {
           deps.forEach((dependency) => { if (!dependencies.includes(dependency)) { dependencies.push(dependency); } });
         });
@@ -641,8 +642,9 @@ class SagaTester {
 
   processSubGenerators(generator, subGenerator, options) {
     if (!resultIsMockedGeneratorData(subGenerator)) {
-      const result = this.processGenerator(subGenerator, { parentTask: options.currentTask });
-      return this.nextOrReturn(generator, result, options);
+      return this.triggerNextStepWithResult({ call: true }, generator, { ...options, wait: false, name: 'unmocked-generator' }, undefined, subGenerator);
+      // const result = this.processGenerator(subGenerator, { parentTask: options.currentTask });
+      // return this.nextOrReturn(generator, result, options);
     }
     const { args, name } = subGenerator;
     if (this.generatorCalls == null || this.generatorCalls[name] == null) {
@@ -838,23 +840,26 @@ class SagaTester {
     const ranTasks = tasksToRun.filter((t) => t.wait === false);
     if (ranTasks.length > 0) {
       this.cleanupRanTasks();
-      this.bubbleUpFinishedTask(ranTasks);
+      this.bubbleUpFinishedTask(ranTasks, []);
     }
   }
 
-  bubbleUpFinishedTask(finishedTasks) {
+  bubbleUpFinishedTask(finishedTasks, putActions) {
     const tasksToRun = [];
     const cancelledTasks = [];
 
-    if (debugShouldApply(finishedTasks, this.debug.bubble)) {
+    if (debugShouldApply(finishedTasks, this.debug.bubble) || debugShouldApply(putActions, this.debug.bubble)) {
       // eslint-disable-next-line no-console
-      console.log(debugBubbledTasks(finishedTasks, this.pendingTasks));
+      console.log(debugBubbledTasks([].concat(finishedTasks, putActions), this.pendingTasks));
     }
     const finishedIds = finishedTasks.map((f) => f.id);
     this.pendingTasks.forEach((p) => {
-      const allDependencies = getDependencies(p, this.pendingTasks);
-      const ranIds = allDependencies.filter((dependencies) => finishedIds.includes(dependencies));
-      if (ranIds.length > 0 && p.interruption) {
+      const unblockedDependencies = getDependencies(p, this.pendingTasks).filter((dependency) => (
+        typeof dependency === 'number' ?
+          finishedIds.includes(dependency) :
+          putActions.some((a) => doesActionMatch(a, dependency))
+      ));
+      if (unblockedDependencies.length > 0 && p.interruption) {
         const { kind, pending } = p.interruption;
         if (p.interruption.dependencies != null && Array.isArray(p.interruption.dependencies)) {
           // eslint-disable-next-line no-param-reassign
@@ -872,7 +877,14 @@ class SagaTester {
                 dependencies = { resolved: true, result: matchedTask.result };
                 isComplete = true;
               }
-            } else {
+            } else if (Array.isArray(dependencies) && dependencies.every((d) => ['string', 'function'].includes(typeof d))) {
+              // This is not a list of dependencies, but an array action pattern
+              const matchedAction = putActions.find((a) => doesActionMatch(a, dependencies));
+              if (matchedAction) {
+                dependencies = { resolved: true, result: matchedAction };
+                isComplete = true;
+              }
+            } else if (Array.isArray(dependencies)) {
               for (let i = 0; i < dependencies.length; i++) {
                 const d = dependencies[i];
                 if (typeof d === 'number') {
@@ -883,6 +895,12 @@ class SagaTester {
                 }
               }
               isComplete = dependencies.every((d) => d?.resolved === true);
+            } else {
+              const matchedAction = putActions.find((a) => doesActionMatch(a, dependencies));
+              if (matchedAction) {
+                dependencies = { resolved: true, result: matchedAction };
+                isComplete = true;
+              }
             }
             if (isComplete) {
               pending[key] = { '@@__isComplete__': true, result: Array.isArray(dependencies) ? dependencies.map((d) => d.result) : dependencies.result };
@@ -895,7 +913,7 @@ class SagaTester {
               if (pending[key]?.value === __INTERRUPT__) {
                 cancelledTasks.push(pending[key].origin);
                 pending[key] = undefined;
-              } else if (pending[key]?.['@@__isComplete__']) {
+              } else {
                 pending[key] = pending[key].result;
               }
             });
@@ -907,15 +925,16 @@ class SagaTester {
             if (Array.isArray(pending) && pending.every((t) => t.interruption === undefined && [undefined, false].includes(t.wait))) {
               tasksToRun.push({ task: p, value: pending.map((t) => t.result) });
             }
-          } else if (pending.interruption === undefined) {
+          } else {
             tasksToRun.push({ task: p, value: pending.result });
           }
-        } else { // INTERRUPTION_TYPES.GENERATOR
+        } else if (kind === INTERRUPTION_TYPES.GENERATOR) {
           // resolve the task which caused the generator to be interrupted (fork'ed tasks may not have blocked the generator)
           const match = finishedTasks.find((t) => t.id === p.interruption.dependencies);
-          if (match) {
-            tasksToRun.push({ task: p, value: match.result });
-          }
+          tasksToRun.push({ task: p, value: match.result });
+        } else { // INTERRUPTION_TYPES.TAKE
+          const matchedAction = putActions.find((a) => doesActionMatch(a, p.interruption.dependencies));
+          tasksToRun.push({ task: p, value: matchedAction });
         }
       }
     });
@@ -965,7 +984,7 @@ class SagaTester {
     const completedTasks = tasksToRun.filter((t) => t.task.wait === false);
     if (completedTasks.length > 0) {
       this.cleanupRanTasks();
-      this.bubbleUpFinishedTask(completedTasks.map((t) => t.task));
+      this.bubbleUpFinishedTask(completedTasks.map((t) => t.task), []);
     }
   }
 

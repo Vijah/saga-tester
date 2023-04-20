@@ -1,3 +1,12 @@
+--- 1.4.0 (unpublished)
+
+- Breaking change: Effective actions are consumed by take (just duplicate the actions that are taken multiple times)
+- Concurrent take behavior.
+
+- Sagas blocked by take verbs now cause a deadlock error instead of a configuration error.
+
+- Fix non-mocked generators being deffered correctly when forked.
+
 --- 1.3.0
 
 - `fork` to behave more intuitively within `race` and `all` effects (the first returning task stops the race; this also works for race/all nested within other race/all, as well as yielded generators that internally yield tasks that must be awaited).
