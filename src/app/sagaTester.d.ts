@@ -9,6 +9,8 @@ type CallType =
 
 type DebugType = number | string | boolean | (number | string)[];
 
+type ActionMatcher = string | ((action: { type: string }) => boolean);
+
 class SagaTester<Saga> {
   constructor(
     saga: Saga,
@@ -28,6 +30,8 @@ class SagaTester<Saga> {
         yieldDecreasesTimer?: boolean;
         useStaticTimes?: boolean;
         waitForSpawned?: boolean;
+        executeTakeGeneratorsOnlyOnce?: boolean;
+        ignoreTakeGenerators: ActionMatcher | ActionMatcher[];
       };
     },
     shouldAssert?: boolean,

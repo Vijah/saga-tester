@@ -27,16 +27,9 @@ TODO:
 --- 1.4.0
 
 TODO:
-- Concurrent takeLatest behavior.
 - Test demonstrating a takeLatest generator is cancelled when an action is put while the generator is still running.
-- Concurrent takeEvery behavior.
-- Test demonstrating a takeEvery generator can run multiple instances in a row when an action is put while the generator is still running.
-- Concurrent takeLeading behavior.
-- Test demonstrating a takeLeading generator does nothing if the generator is still running.
-- Concurrent debounce behavior.
 - Test which demonstrates a debounced generator is called later if it is put again
 - Test which demonstrates a debounced generator is called after a faster task.
-- Concurrent throttle behavior.
 - Test which demonstrates a throttled generator is not called again if the call is within a certain time limit, but is called again when called passed this time limit.
 - Implement takeMaybe and END action
 - Test ???

@@ -6,7 +6,8 @@ const doesActionMatch = (action, pattern) => {
     return pattern(action);
   }
   const listOfMatchers = Array.isArray(pattern) ? pattern : [pattern];
-  return listOfMatchers.includes(action.type.toString());
+  const type = action.type.toString();
+  return listOfMatchers.some((matcher) => (typeof matcher === 'string' ? matcher === type : matcher(action)));
 };
 
 export default doesActionMatch;

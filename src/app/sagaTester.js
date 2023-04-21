@@ -5,6 +5,7 @@ import debugBubbledTasks from './helpers/debugBubbledTasks';
 import debugDeadlock from './helpers/debugDeadlock';
 import debugShouldApply from './helpers/debugShouldApply';
 import debugUnblock from './helpers/debugUnblock';
+import doesActionMatch from './helpers/doesActionMatch';
 import getDependencies from './helpers/getDependencies';
 import INTERRUPTION_TYPES from './helpers/INTERRUPTION_TYPES';
 import isArrayEmpty from './helpers/isArrayEmpty';
@@ -13,7 +14,8 @@ import makeInterruption from './helpers/makeInterruption';
 import paramsMatch from './helpers/paramsMatch';
 import sortTaskPriority from './helpers/sortTaskPriority';
 import __INTERRUPT__ from './helpers/__INTERRUPT__';
-import doesActionMatch from './helpers/doesActionMatch';
+import TAKE_GENERATOR_TYPES from './helpers/TAKE_GENERATOR_TYPES';
+import TAKE_GENERATOR_TYPES_MAP from './helpers/TAKE_GENERATOR_TYPES_MAP';
 
 const assert = (condition, message) => {
   if (!condition) {
@@ -126,13 +128,6 @@ class SagaTester {
     assert(validActions(expectedActions), err('expectedActions must be an array of object containing either an attribute "type" or "action"'));
     assert(validActions(effectiveActions), err('effectiveActions must be an array of object containing either an attribute "type" or "action"'));
 
-    const {
-      stepLimit = 1000,
-      yieldDecreasesTimer = false,
-      useStaticTimes = false,
-      waitForSpawned = false,
-    } = options;
-
     this.saga = saga;
     this.selectorConfig = selectorConfig;
     this.expectedActions = expectedActions;
@@ -147,10 +142,22 @@ class SagaTester {
     this.returnValue = undefined;
     this.effectiveActions = effectiveActions;
     this.debug = debug;
+
+    const {
+      stepLimit = 1000,
+      yieldDecreasesTimer = false,
+      useStaticTimes = false,
+      waitForSpawned = false,
+      executeTakeGeneratorsOnlyOnce = false,
+      ignoreTakeGenerators = undefined,
+    } = options;
+
     this.stepLimit = stepLimit;
     this.yieldDecreasesTimer = yieldDecreasesTimer;
     this.useStaticTimes = useStaticTimes;
     this.waitForSpawned = waitForSpawned;
+    this.executeTakeGeneratorsOnlyOnce = executeTakeGeneratorsOnlyOnce;
+    this.ignoreTakeGenerators = ignoreTakeGenerators;
   }
 
   /**
@@ -203,6 +210,7 @@ class SagaTester {
     this.taskId = 0;
     this.pendingTasks = [];
     this.taskStack = [];
+    this.takeGenerators = [];
     this.args = args;
     if (isArrayEmpty(this.effectiveActions)) {
       if (args[0] == null || (typeof args[0] === 'object' && args[0].type === undefined)) {
@@ -389,7 +397,7 @@ class SagaTester {
     if (currentResult.value.type === 'PUT') {
       return this.processPutEffect(generator, currentResult.value, options);
     }
-    if (currentResult.value.type === 'FORK' && ['takeLeading', 'takeLatest', 'takeEvery', 'debounceHelper', 'throttle'].includes(currentResult.value.payload.fn.name)) {
+    if (currentResult.value.type === 'FORK' && Object.keys(TAKE_GENERATOR_TYPES_MAP).includes(currentResult.value.payload.fn.name)) {
       return this.processActionMatchingTakeEffects(generator, currentResult.value, options);
     }
     if (currentResult.value.type === 'FORK') {
@@ -527,30 +535,30 @@ class SagaTester {
 
     this.bubbleUpFinishedTask([], [action]);
 
+    this.takeGenerators.forEach((tg) => {
+      if (doesActionMatch(action, tg.pattern)) {
+        this.triggerTakeGenerator(tg, action);
+      }
+    });
+
     return this.nextOrReturn(generator, undefined, options);
   }
 
   processActionMatchingTakeEffects(generator, value, options) {
-    // const methodName = value.payload.fn.name;
+    const generatorType = TAKE_GENERATOR_TYPES_MAP[value.payload.fn.name];
     const { args } = value.payload;
-    let type;
+    let pattern;
     let method;
+    let delayArg;
 
     // handle the debounced verb
     if (args.length === 3 && typeof args[0] === 'number' && typeof args[2] === 'function') {
-      [, type, method] = args;
+      [delayArg, pattern, method] = args;
     } else {
-      [type, method] = args;
+      [pattern, method] = args;
     }
 
-    if (type === '*') {
-      return this.processSubGenerators(generator, method(this.actions[0]), options);
-    }
-    const listOfMatchers = Array.isArray(type) ? type : [type];
-    const matchedAction = isArrayEmpty(this.actions) ? undefined : this.actions.find((action) => listOfMatchers.includes(action.type));
-    if (matchedAction) {
-      return this.processSubGenerators(generator, method(matchedAction), options);
-    }
+    this.addNewTakeGenerator({ actionPattern: pattern, generatorMethod: method, generatorType, delayArg }, options);
     return this.nextOrReturn(generator, undefined, options);
   }
 
@@ -643,8 +651,6 @@ class SagaTester {
   processSubGenerators(generator, subGenerator, options) {
     if (!resultIsMockedGeneratorData(subGenerator)) {
       return this.triggerNextStepWithResult({ call: true }, generator, { ...options, wait: false, name: 'unmocked-generator' }, undefined, subGenerator);
-      // const result = this.processGenerator(subGenerator, { parentTask: options.currentTask });
-      // return this.nextOrReturn(generator, result, options);
     }
     const { args, name } = subGenerator;
     if (this.generatorCalls == null || this.generatorCalls[name] == null) {
@@ -788,6 +794,62 @@ class SagaTester {
     return newTask;
   }
 
+  addNewTakeGenerator({ actionPattern, generatorType, generatorMethod, delayArg }, options) {
+    const { currentTask } = options;
+    const newTakeGenerator = {
+      parentTask: currentTask,
+      pattern: actionPattern,
+      kind: generatorType,
+      method: generatorMethod,
+      state: { delayArg, timer: 0, lastTaskId: undefined },
+    };
+    this.takeGenerators.push(newTakeGenerator);
+    const matchedAction = this.actions.find((a) => doesActionMatch(a, actionPattern));
+    if (matchedAction) {
+      this.actions = this.actions.filter((a) => a !== matchedAction);
+      this.triggerTakeGenerator(newTakeGenerator, matchedAction);
+    }
+  }
+
+  triggerTakeGenerator(takeGenerator, action) {
+    const { kind, method, parentTask, state: { delayArg, timer, lastTaskId } } = takeGenerator;
+    if (this.executeTakeGeneratorsOnlyOnce && lastTaskId != null) { return; }
+    if (this.ignoreTakeGenerators != null && doesActionMatch(action, this.ignoreTakeGenerators)) { return; }
+
+    const lastTask = this.pendingTasks.find((t) => t.id === lastTaskId);
+
+    let task;
+    if (kind === TAKE_GENERATOR_TYPES.TAKE_EVERY) {
+      task = this.makeNewTask({ wait: false, generator: method(action), parentTask, name: method.name });
+    } else if (kind === TAKE_GENERATOR_TYPES.TAKE_LATEST) {
+      if (lastTask) {
+        this.cancelTasks([lastTask], []);
+      }
+      task = this.makeNewTask({ wait: false, generator: method(action), parentTask, name: method.name });
+    } else if (kind === TAKE_GENERATOR_TYPES.TAKE_LEADING) {
+      if (!lastTask) {
+        task = this.makeNewTask({ wait: false, generator: method(action), parentTask, name: method.name });
+      }
+    } else if (kind === TAKE_GENERATOR_TYPES.THROTTLE) {
+      if (timer <= 0) {
+        task = this.makeNewTask({ wait: false, generator: method(action), parentTask, name: method.name });
+        // eslint-disable-next-line no-param-reassign
+        takeGenerator.state.timer = delayArg;
+      }
+    } else { // kind === TAKE_GENERATOR_TYPES.DEBOUNCE
+      task = this.makeNewTask({ wait: delayArg, generator: method(action), parentTask, name: method.name });
+      if (lastTask && typeof lastTask.wait === 'number') {
+        // The task has not even been run yet; we remove it from the queue to prevent it from ever running
+        this.pendingTasks.filter((p) => p !== lastTask);
+      }
+    }
+
+    if (task) {
+      // eslint-disable-next-line no-param-reassign
+      takeGenerator.state.lastTaskId = task.id;
+    }
+  }
+
   handleInterruption(rootTask) {
     // eslint-disable-next-line no-constant-condition
     while (true) {
@@ -830,6 +892,10 @@ class SagaTester {
           // eslint-disable-next-line no-param-reassign
           p.wait = Math.max(0, p.wait - selectedPriority);
         }
+      });
+      this.takeGenerators.forEach((tg) => {
+        // eslint-disable-next-line no-param-reassign
+        tg.state.timer = Math.max(0, tg.state.timer - selectedPriority);
       });
     }
 
@@ -940,32 +1006,7 @@ class SagaTester {
     });
 
     if (cancelledTasks.length > 0) {
-      let tasksToCancel = [];
-      cancelledTasks.forEach((id) => {
-        const task = this.pendingTasks.find((p) => p.id === id);
-        if (tasksToCancel.includes(task)) {
-          return;
-        }
-        tasksToCancel.push(task);
-      });
-
-      // eslint-disable-next-line no-constant-condition
-      while (true) {
-        const count = tasksToCancel.length;
-        for (let i = 0; i < this.pendingTasks.length; i++) {
-          const p = this.pendingTasks[i];
-          if (
-            !tasksToCancel.includes(p) &&
-            tasksToCancel.some((t) => t === p.parentTask || getDependencies(t, this.pendingTasks).includes(p.id))
-          ) {
-            tasksToCancel.unshift(p);
-          }
-        }
-        if (count === tasksToCancel.length) { break; }
-      }
-      tasksToCancel = tasksToCancel.filter((t) => !tasksToRun.some(({ task }) => task.id === t.id));
-      tasksToCancel.forEach(this.recursiveCancelTasks());
-      tasksToCancel.forEach((t) => { this.runTask(t); });
+      this.cancelTasks(cancelledTasks, tasksToRun);
     }
 
     tasksToRun.forEach(({ task, value }) => {
@@ -986,6 +1027,35 @@ class SagaTester {
       this.cleanupRanTasks();
       this.bubbleUpFinishedTask(completedTasks.map((t) => t.task), []);
     }
+  }
+
+  cancelTasks(tasksEligibleForCancellation, tasksNotToCancel) {
+    let tasksToCancel = [];
+    tasksEligibleForCancellation.forEach((id) => {
+      const task = this.pendingTasks.find((p) => p.id === id);
+      if (tasksToCancel.includes(task)) {
+        return;
+      }
+      tasksToCancel.push(task);
+    });
+
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const count = tasksToCancel.length;
+      for (let i = 0; i < this.pendingTasks.length; i++) {
+        const p = this.pendingTasks[i];
+        if (
+          !tasksToCancel.includes(p) &&
+          tasksToCancel.some((t) => t === p.parentTask || getDependencies(t, this.pendingTasks).includes(p.id))
+        ) {
+          tasksToCancel.unshift(p);
+        }
+      }
+      if (count === tasksToCancel.length) { break; }
+    }
+    tasksToCancel = tasksToCancel.filter((t) => !tasksNotToCancel.some(({ task }) => task.id === t.id));
+    tasksToCancel.forEach(this.recursiveCancelTasks());
+    tasksToCancel.forEach((t) => { this.runTask(t); });
   }
 
   recursiveCancelTasks(ignores = []) {

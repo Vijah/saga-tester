@@ -1,13 +1,33 @@
---- 1.4.0 (unpublished)
+## 1.4.0 (unpublished)
 
+### Breaking changes
 - Breaking change: Effective actions are consumed by take (just duplicate the actions that are taken multiple times)
-- Concurrent take behavior.
 
+### New features
+- "Concurrent behavior" means that it behaves just like a real redux-saga, meaning it pends until it finds a match. E.g. for debounce, waits a given "time" before executing the task, pushing the time further if a second trigger is met before the time is over. The delays are fake and handled by sagaTester merely to determine in which order to run effects and tasks.
+- Concurrent `take` behavior.
+- Concurrent `takeLatest` behavior.
+- Concurrent `takeEvery` behavior.
+- Concurrent `takeLeading` behavior.
+- Concurrent `debounce` behavior.
+- Concurrent `throttle` behavior.
+
+### New Options
+- Add `config.options.executeTakeGeneratorsOnlyOnce` option.
+  - `false` by default.
+  - If `true`, effects `debounce`, `throttle`, `takeEvery`, `takeLeading` and `takeLatest` will only ever be executed once.
+  - By default, these effects will create as many tasks as would be created in a normal saga execution.
+- Add `config.options.ignoreTakeGenerators: pattern` option.
+  - Empty by default.
+  - Any action matched by the pattern (which can be a list, just like in the redux-saga api) will not trigger any take generators.
+
+### Minor changes
 - Sagas blocked by take verbs now cause a deadlock error instead of a configuration error.
 
+### Bugfixes
 - Fix non-mocked generators being deffered correctly when forked.
 
---- 1.3.0
+## 1.3.0
 
 - `fork` to behave more intuitively within `race` and `all` effects (the first returning task stops the race; this also works for race/all nested within other race/all, as well as yielded generators that internally yield tasks that must be awaited).
 - support `spawn`

@@ -1439,7 +1439,7 @@ Error: Deadlock: 1 tasks did not finish. Remaining tasks:
       function* saga() { yield takeLatest('TYPE', method); }
 
       // Run the saga
-      const expectedError = 'A selector returned undefined. If this is desirable, provide selectorConfig.__passOnUndefined: true. Otherwise, provide selectorConfig. (step 0)';
+      const expectedError = 'A selector returned undefined. If this is desirable, provide selectorConfig.__passOnUndefined: true. Otherwise, provide selectorConfig. (step 2)';
       expect(() => new SagaTester(saga).run(action)).toThrow(expectedError);
     });
     it('should throw error explaining to config selectors when a selector crashes', () => {
@@ -1454,7 +1454,7 @@ Error: Deadlock: 1 tasks did not finish. Remaining tasks:
       function* saga() { yield takeLatest('TYPE', method); }
 
       // Run the saga
-      const expectedError = 'A selector crashed while executing. Either provide the redux value in selectorConfig, or mock it using mockSelector (step 0)';
+      const expectedError = 'A selector crashed while executing. Either provide the redux value in selectorConfig, or mock it using mockSelector (step 2)';
       expect(() => new SagaTester(saga).run(action)).toThrow(expectedError);
     });
     it('should throw error when an unexpected selector is received', () => {
@@ -1469,7 +1469,7 @@ Error: Deadlock: 1 tasks did not finish. Remaining tasks:
       function* saga() { yield takeLatest('TYPE', method); }
 
       // Run the saga
-      const expectedError = 'Received selector with id selector, but the SagaTest was not configured to handle this selector (step 0)';
+      const expectedError = 'Received selector with id selector, but the SagaTest was not configured to handle this selector (step 2)';
       expect(() => new SagaTester(saga).run(action)).toThrow(expectedError);
     });
   });
@@ -1691,10 +1691,6 @@ Error: Deadlock: 1 tasks did not finish. Remaining tasks:
           method2: [{ params: ['a', 'b'], call: true }, { params: ['c', 'd'], output: 'LOL' }],
           method3: [{ params: ['a', 'b'], call: true }, { params: ['c', 'd'], output: 'LMAO' }],
         },
-        debug: {
-          bubble: true,
-          unblock: true,
-        },
       }).run(action);
     });
     it('should handle call verbs with alternate apis', () => {
@@ -1809,7 +1805,7 @@ Error: Deadlock: 1 tasks did not finish. Remaining tasks:
       const config = {};
 
       // Run the saga
-      const expectedError = 'Received CALL verb with a method named method1, but the SagaTest was not configured to receive this CALL (step 0)';
+      const expectedError = 'Received CALL verb with a method named method1, but the SagaTest was not configured to receive this CALL (step 2)';
       expect(() => new SagaTester(saga, config).run(action)).toThrow(expectedError);
     });
     it('should throw an error if a known method is CALLed with unexpected parameters', () => {
@@ -1883,17 +1879,14 @@ Error: Deadlock: 1 tasks did not finish. Remaining tasks:
       }
       function* saga() { yield takeLatest('TYPE', method); }
 
-      // Saga Tester config
-      const config = {
+      // Run the saga
+      new SagaTester(saga, {
         expectedGenerators: {
           generator1: [{ output: 'someResult' }],
           generator2: [{ times: 2, params: [5, 5] }],
           generator3: [{ times: 2 }],
         },
-      };
-
-      // Run the saga
-      new SagaTester(saga, config).run(action);
+      }).run(action);
     });
     it('should list errors for each generator not called as expected', () => {
       // Setup actions and methods
