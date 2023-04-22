@@ -823,7 +823,7 @@ class SagaTester {
       task = this.makeNewTask({ wait: false, generator: method(action), parentTask, name: method.name });
     } else if (kind === TAKE_GENERATOR_TYPES.TAKE_LATEST) {
       if (lastTask) {
-        this.cancelTasks([lastTask], []);
+        this.cancelTasks([lastTask.id], []);
       }
       task = this.makeNewTask({ wait: false, generator: method(action), parentTask, name: method.name });
     } else if (kind === TAKE_GENERATOR_TYPES.TAKE_LEADING) {
@@ -838,9 +838,9 @@ class SagaTester {
       }
     } else { // kind === TAKE_GENERATOR_TYPES.DEBOUNCE
       task = this.makeNewTask({ wait: delayArg, generator: method(action), parentTask, name: method.name });
-      if (lastTask && typeof lastTask.wait === 'number') {
+      if (lastTask && !lastTask.started) {
         // The task has not even been run yet; we remove it from the queue to prevent it from ever running
-        this.pendingTasks.filter((p) => p !== lastTask);
+        this.pendingTasks = this.pendingTasks.filter((p) => p !== lastTask);
       }
     }
 
@@ -1029,9 +1029,9 @@ class SagaTester {
     }
   }
 
-  cancelTasks(tasksEligibleForCancellation, tasksNotToCancel) {
+  cancelTasks(idsEligibleForCancellation, tasksNotToCancel) {
     let tasksToCancel = [];
-    tasksEligibleForCancellation.forEach((id) => {
+    idsEligibleForCancellation.forEach((id) => {
       const task = this.pendingTasks.find((p) => p.id === id);
       if (tasksToCancel.includes(task)) {
         return;

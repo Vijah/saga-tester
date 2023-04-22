@@ -1,9 +1,9 @@
-import { cancelled, delay, put, takeLeading } from 'redux-saga/effects';
+import { cancelled, delay, put, throttle } from 'redux-saga/effects';
 
 import SagaTester from '../sagaTester';
 
-describe('sagaTester - takeLeading effect', () => {
-  it('should call the generator method only if the generator is not already matching', () => {
+describe('sagaTester - throttle effect', () => {
+  it('should not call when a trigger happens before the end of the throttle timer', () => {
     let order = 1;
     function* method({ type }) {
       try {
@@ -11,16 +11,18 @@ describe('sagaTester - takeLeading effect', () => {
         yield put({ type: 'CALLED', arg: type, order: order++ });
       } finally {
         if (yield cancelled()) {
-          yield put({ type: 'CALLED', isCancelled: true });
+          yield put({ type: 'CALLED', arg: type, isCancelled: true, order: order++ });
         }
       }
     }
     function* saga() {
-      yield takeLeading('*', method);
+      yield throttle(100, ['yellow', 'yessir', 'yes'], method);
+      yield delay(30);
       yield put({ type: 'yellow' });
-      yield delay(26);
+      yield delay(60);
       yield put({ type: 'yellow' });
-      yield delay(25);
+      yield delay(11);
+      yield put({ type: 'yessir' });
       yield put({ type: 'yessir' });
       order++;
     }
