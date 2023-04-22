@@ -8,7 +8,6 @@ TODO:
 
 TODO:
 - implement setContext and getContext (children forks cannot modify the context of their parents unless by reference)
-- fix apis for call, apply, fork, spawn, cps using context as a parameter.
 
 --- 2.1.0
 
@@ -37,7 +36,5 @@ TODO:
 --- 1.4.0
 
 TODO:
-- Implement takeMaybe and END action
-- Test ???
 - Modify `putResolve` to await any tasks resulting from the action
 - Update README with new features.

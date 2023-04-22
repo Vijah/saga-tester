@@ -11,6 +11,7 @@
 - Concurrent `takeLeading` behavior.
 - Concurrent `debounce` behavior.
 - Concurrent `throttle` behavior.
+- Implement takeMaybe and END action.
 
 ### New Options
 - Add `config.options.executeTakeGeneratorsOnlyOnce` option.
@@ -26,6 +27,9 @@
 
 ### Bugfixes
 - Fix non-mocked generators being deffered correctly when forked.
+- Fix non-mocked generators lacking names for debug purposes, even when names could be inferred
+- Fix cancelled tasks not returning properly when a join is made inside finally (I don't even know if redux-saga supports this)
+- Fix cancelled root saga does not return correctly
 
 ## 1.3.0
 

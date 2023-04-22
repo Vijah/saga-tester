@@ -17,6 +17,8 @@ import __INTERRUPT__ from './helpers/__INTERRUPT__';
 import TAKE_GENERATOR_TYPES from './helpers/TAKE_GENERATOR_TYPES';
 import TAKE_GENERATOR_TYPES_MAP from './helpers/TAKE_GENERATOR_TYPES_MAP';
 
+const END_TYPE = '@@redux-saga/CHANNEL_END';
+
 const assert = (condition, message) => {
   if (!condition) {
     throw new Error(`Assertion error - ${message}`);
@@ -310,7 +312,6 @@ class SagaTester {
       currentTask = this.makeNewTask({ wait: 'generator', generator, parentTask, name });
     }
     currentTask.started = true;
-
     try {
       while (!nextResult.done) {
         currentTask.latestValue = nextResult.value;
@@ -333,6 +334,9 @@ class SagaTester {
     } catch (e) {
       this.taskStack.push(`id: ${currentTask.id}, generator: ${currentTask.id === 0 ? 'root' : currentTask.generator?.name}`);
       throw e;
+    }
+    if (currentTask.id === 0 && currentTask.result !== undefined && currentTask.isCancelled && nextResult.value === undefined) {
+      return currentTask.result;
     }
 
     // Cleanup now that the generator ended, or make it wait after its children
@@ -407,9 +411,10 @@ class SagaTester {
       }
       const subGenerator = currentResult.value.payload.fn(...currentResult.value.payload.args);
       const methodName = currentResult.value.payload.fn.name;
-      if (this.generatorCalls?.[methodName] != null) {
-        subGenerator.name = methodName;
-        subGenerator.args = currentResult.value.payload.args;
+      subGenerator.name = methodName;
+      subGenerator.args = currentResult.value.payload.args;
+      if (this.generatorCalls?.[methodName] == null) {
+        subGenerator.unmocked = true;
       }
       return this.processSubGenerators(generator, subGenerator, { ...options, isTask: true, isBoundToParent: currentResult.value.payload?.detached !== true });
     }
@@ -450,6 +455,10 @@ class SagaTester {
 
     const wrappedTaskList = Array.isArray(payload) ? [...payload] : [payload];
     const results = [];
+    if (currentTask.isCancelled) {
+      const result = wrappedTaskList.map((task) => task.result);
+      return this.nextOrReturn(generator, Array.isArray(payload) ? result : result[0], options);
+    }
     if (wrappedTaskList.some((t) => ![false, undefined].includes(t.wait) || getDependencies(t, this.pendingTasks).length > 0)) {
       const taskList = Array.isArray(payload) ? [...payload] : payload;
       return makeInterruption(currentTask, taskList, INTERRUPTION_TYPES.JOIN, Array.isArray(payload) ? payload.map((t) => t.id) : payload.id, this.debug?.interrupt);
@@ -564,6 +573,7 @@ class SagaTester {
 
   processTake(generator, value, options) {
     const { currentTask } = options;
+    const { maybe } = value.payload;
     let { pattern } = value.payload;
     // This weird line is to fit the description of the redux-saga doc on "take", while not stringifying every function patterns.
     if (typeof pattern === 'number' || (typeof pattern === 'function' && pattern?.toString?.toString && pattern.toString.toString().indexOf('[native code]') < 0)) {
@@ -577,11 +587,17 @@ class SagaTester {
         return p;
       });
     }
-    const matchedAction = this.actions.find((a) => doesActionMatch(a, pattern));
+    const matchedAction = this.actions.find((a) => a.type === END_TYPE || doesActionMatch(a, pattern));
     if (matchedAction === undefined) {
-      return makeInterruption(currentTask, undefined, INTERRUPTION_TYPES.TAKE, pattern, this.debug?.interrupt);
+      const interruption = makeInterruption(currentTask, undefined, INTERRUPTION_TYPES.TAKE, pattern, this.debug?.interrupt);
+      interruption.maybe = maybe;
+      currentTask.interruption.maybe = maybe;
+      return interruption;
     }
     this.actions = this.actions.filter((a) => a !== matchedAction);
+    if (matchedAction.type === END_TYPE && !maybe) {
+      return this.processCancellation(generator, { payload: '@@redux-saga/SELF_CANCELLATION' }, options);
+    }
     return this.nextOrReturn(generator, matchedAction, options);
   }
 
@@ -649,8 +665,8 @@ class SagaTester {
   }
 
   processSubGenerators(generator, subGenerator, options) {
-    if (!resultIsMockedGeneratorData(subGenerator)) {
-      return this.triggerNextStepWithResult({ call: true }, generator, { ...options, wait: false, name: 'unmocked-generator' }, undefined, subGenerator);
+    if (!resultIsMockedGeneratorData(subGenerator) || subGenerator.unmocked) {
+      return this.triggerNextStepWithResult({ call: true }, generator, { ...options, wait: false, name: subGenerator.name || 'unmocked-generator' }, undefined, subGenerator);
     }
     const { args, name } = subGenerator;
     if (this.generatorCalls == null || this.generatorCalls[name] == null) {
@@ -918,12 +934,13 @@ class SagaTester {
       // eslint-disable-next-line no-console
       console.log(debugBubbledTasks([].concat(finishedTasks, putActions), this.pendingTasks));
     }
+    const hasEndAction = putActions.some((a) => a.type === END_TYPE);
     const finishedIds = finishedTasks.map((f) => f.id);
     this.pendingTasks.forEach((p) => {
       const unblockedDependencies = getDependencies(p, this.pendingTasks).filter((dependency) => (
         typeof dependency === 'number' ?
           finishedIds.includes(dependency) :
-          putActions.some((a) => doesActionMatch(a, dependency))
+          hasEndAction || putActions.some((a) => doesActionMatch(a, dependency))
       ));
       if (unblockedDependencies.length > 0 && p.interruption) {
         const { kind, pending } = p.interruption;
@@ -943,14 +960,23 @@ class SagaTester {
                 dependencies = { resolved: true, result: matchedTask.result };
                 isComplete = true;
               }
-            } else if (Array.isArray(dependencies) && dependencies.every((d) => ['string', 'function'].includes(typeof d))) {
-              // This is not a list of dependencies, but an array action pattern
-              const matchedAction = putActions.find((a) => doesActionMatch(a, dependencies));
-              if (matchedAction) {
-                dependencies = { resolved: true, result: matchedAction };
-                isComplete = true;
+            } else if (!Array.isArray(dependencies) || dependencies.every((d) => ['string', 'function'].includes(typeof d))) {
+              // This is an action pattern, which can be an array of string/function, a string, or a function.
+              if (hasEndAction) {
+                if (pending[key].maybe) {
+                  dependencies = { resolved: true, result: { type: END_TYPE } };
+                  isComplete = true;
+                } else {
+                  cancelledTasks.push(p.parentTask.id);
+                }
+              } else {
+                const matchedAction = putActions.find((a) => doesActionMatch(a, dependencies));
+                if (matchedAction) {
+                  dependencies = { resolved: true, result: matchedAction };
+                  isComplete = true;
+                }
               }
-            } else if (Array.isArray(dependencies)) {
+            } else { // Array.isArray(dependencies)
               for (let i = 0; i < dependencies.length; i++) {
                 const d = dependencies[i];
                 if (typeof d === 'number') {
@@ -961,12 +987,6 @@ class SagaTester {
                 }
               }
               isComplete = dependencies.every((d) => d?.resolved === true);
-            } else {
-              const matchedAction = putActions.find((a) => doesActionMatch(a, dependencies));
-              if (matchedAction) {
-                dependencies = { resolved: true, result: matchedAction };
-                isComplete = true;
-              }
             }
             if (isComplete) {
               pending[key] = { '@@__isComplete__': true, result: Array.isArray(dependencies) ? dependencies.map((d) => d.result) : dependencies.result };
@@ -999,8 +1019,17 @@ class SagaTester {
           const match = finishedTasks.find((t) => t.id === p.interruption.dependencies);
           tasksToRun.push({ task: p, value: match.result });
         } else { // INTERRUPTION_TYPES.TAKE
-          const matchedAction = putActions.find((a) => doesActionMatch(a, p.interruption.dependencies));
-          tasksToRun.push({ task: p, value: matchedAction });
+          // eslint-disable-next-line no-lonely-if
+          if (hasEndAction) {
+            if (p.interruption.maybe) {
+              tasksToRun.push({ task: p, value: { type: END_TYPE } });
+            } else {
+              cancelledTasks.push(p.id);
+            }
+          } else {
+            const matchedAction = putActions.find((a) => doesActionMatch(a, p.interruption.dependencies));
+            tasksToRun.push({ task: p, value: matchedAction });
+          }
         }
       }
     });
