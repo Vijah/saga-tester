@@ -16,6 +16,8 @@ const packageJson = require('../../package.json');
 
 delete packageJson.scripts;
 delete packageJson.devDependencies;
+delete packageJson.peerDependencies;
+delete packageJson.peerDependenciesMeta;
 
 fs.writeFileSync('build/package.json', JSON.stringify(packageJson, undefined, 2));
 

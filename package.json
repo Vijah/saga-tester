@@ -39,7 +39,7 @@
     "@chalbert/enzyme-adapter-react-18": "^0.7.2",
     "@types/enzyme": "^3.10.12",
     "@types/jest": "^29.2.3",
-    "@types/node": "^18.11.9",
+    "@types/node": "^20.1.1",
     "@types/react-dom": "^18.0.9",
     "@typescript-eslint/eslint-plugin": "^5.44.0",
     "@typescript-eslint/parser": "^5.44.0",
@@ -65,7 +65,7 @@
     "redux-saga": "^1.2.2",
     "reselect": "^4.1.7",
     "shelljs": "^0.8.5",
-    "typescript": "^4.9.3"
+    "typescript": "^5.0.4"
   },
   "peerDependencies": {
     "typescript": ">=4.0.0"
