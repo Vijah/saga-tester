@@ -1,4 +1,4 @@
-## 1.4.0 (unpublished)
+## 1.4.0
 
 ### Breaking changes
 - Breaking change: Effective actions are consumed by take (just duplicate the actions that are taken multiple times)
