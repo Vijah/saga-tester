@@ -3,7 +3,7 @@
 A tester library for redux-saga, offering the following features:
 
 - Is order-independent (changing yield order does not break the test, making your tests less fragile).
-- Handles the following redux-saga/effects: put, putResolve, select, call, apply, all, race, retry, take, takeLatest, takeEvery, takeLeading, throttle, debounce, fork, spawn, delay, cancel, cancelled, join.
+- Handles the following redux-saga/effects: put, putResolve, select, call, apply, all, race, retry, take, takeMaybe, the END action, takeLatest, takeEvery, takeLeading, throttle, debounce, fork, spawn, delay, cancel, cancelled, join.
 - Runs the entire generator method from start to finish with one holistic config.
 - Handles concurrent task executions, error handling and task cancellation internally, like redux-saga.
 
