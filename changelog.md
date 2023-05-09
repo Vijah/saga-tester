@@ -5,13 +5,27 @@
 
 ### New features
 - "Concurrent behavior" means that it behaves just like a real redux-saga, meaning it pends until it finds a match. E.g. for debounce, waits a given "time" before executing the task, pushing the time further if a second trigger is met before the time is over. The delays are fake and handled by sagaTester merely to determine in which order to run effects and tasks.
-- Concurrent `take` behavior.
-- Concurrent `takeLatest` behavior.
-- Concurrent `takeEvery` behavior.
-- Concurrent `takeLeading` behavior.
-- Concurrent `debounce` behavior.
-- Concurrent `throttle` behavior.
-- Implement takeMaybe and END action.
+  - Concurrent `take` behavior.
+  - Concurrent `takeLatest` behavior.
+  - Concurrent `takeEvery` behavior.
+  - Concurrent `takeLeading` behavior.
+  - Concurrent `debounce` behavior.
+  - Concurrent `throttle` behavior.
+  - Implement `takeMaybe` and `END` action.
+
+- Add `sideEffects` as a hook to easily inject side effects such as running timers (important to deal with setTimeout) and modifying the store (important for infinite loops)
+  - add action side effect (`put`, `putResolve`).
+  - add cancellation side effect (`cancel()`).
+  - add `spawn` and `fork` side effect.
+  - add `call` side effect.
+  - add redux side effect modifying the selectorConfig (`{ wait?: number | boolean, changeSelectorConfig: (prevSelectorConfig) => newSelectorConfig }`).
+
+- Handle promises. Requires using `runAsync` instead of `run`.
+  - Handle actions within promises (in the form of redux-thunk api).
+  - Handle redux-thunk type actions
+  - handle calls containing promises.
+  - `putResolve` blocks until the asynchronous action resolves, if it is a promise.
+  - If your asynchronous code uses setTimeout, you can dispatch a sideEffect which calls `jest.runAllTimers()`, or an equivalent in your test suite. SagaTester presumes that if nothing happens during a "step", it means it is deadlocked. As a result, SagaTester cannot "spin" until promises or timers conclude. This is why you should mock most promises or timers in your tests.
 
 ### New Options
 - Add `config.options.executeTakeGeneratorsOnlyOnce` option.
@@ -21,15 +35,22 @@
 - Add `config.options.ignoreTakeGenerators: pattern` option.
   - Empty by default.
   - Any action matched by the pattern (which can be a list, just like in the redux-saga api) will not trigger any take generators.
+- Add `config.options.swallowSpawnErrors` to allow continuing the saga normally when a spawn throws an unhandled exception
+- Add `config.options.reduxThunkOptions` which are passed as a third parameter to redux-thunk function actions.
 
 ### Minor changes
 - Sagas blocked by take verbs now cause a deadlock error instead of a configuration error.
+- Error handling now propagates upwards to the parent, and leads to cancelled siblings.
 
 ### Bugfixes
 - Fix non-mocked generators being deffered correctly when forked.
 - Fix non-mocked generators lacking names for debug purposes, even when names could be inferred
 - Fix cancelled tasks not returning properly when a join is made inside finally (I don't even know if redux-saga supports this)
 - Fix cancelled root saga does not return correctly
+- Fix error handling not behaving like specified.
+- Fix throw clause not working with wait.
+- Fix cancellation occasionally not working properly.
+- Fix tasks occasionally terminating incorrectly when yielded in an effect.
 
 ## 1.3.0
 

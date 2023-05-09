@@ -5,23 +5,30 @@ A tester library for redux-saga, offering the following features:
 - Is order-independent (changing yield order does not break the test, making your tests less fragile).
 - Handles the following redux-saga/effects: put, putResolve, select, call, apply, all, race, retry, take, takeLatest, takeEvery, takeLeading, throttle, debounce, fork, spawn, delay, cancel, cancelled, join.
 - Runs the entire generator method from start to finish with one holistic config.
-- Is indirectly a generator function tester.
+- Handles concurrent task executions, error handling and task cancellation internally, like redux-saga.
 
 It has the following limitations:
 
-- Does not handle action propagation (coming in 1.4.0).
 - Is in ECMA6 and not transpiled (this will change in 2.0.0)
-- Does not handle channels and other advanced saga features to handle complex concurrent behavior.
+- Does not handle channels and other advanced saga features to handle complex concurrent behavior (coming in 2.3.0).
 
-## Package usage
+## Install
 
-### API
-
-```js
-new SagaTester(saga, config, shouldAssert).run(parameters);
+```
+yarn add @vijah/saga-tester --dev
 ```
 
-### Example
+```
+npm install --save-dev @vijah/saga-tester
+```
+
+## API
+
+```js
+new SagaTester(saga, config).run(sagaArgs);
+```
+
+## Example
 
 Given the following saga method:
 ```js
@@ -65,9 +72,7 @@ const result = new SagaTester(mySaga, {
 expect(result).toEqual({ generatorResult: 'brak', takeValue: 'someValue' });
 ```
 
-(This test is replicated in the unit tests as the README TEST)
-
-### config.selectorConfig
+## config.selectorConfig
 `selectorConfig`: `Object` that acts as the redux store.
 
 Additionally, you can mock a selector using mockSelector, and its ID in the selectorConfig will give its value.
@@ -76,7 +81,7 @@ To avoid bad configs, if a real selector returns undefined, the saga will fail.
 If you want a selector to return an undefined value without failing, provide
 `selectorConfig: { __passOnUndefined: true }`
 
-### config.expectedActions
+## config.expectedActions
 
 `expectedActions`: `Array` where each element is an action matcher (dispatched with 'put')
 Each element of the array is a tuple of `times`, `strict`, `action` or `type` (only one of `action` and `type` must be provided).
@@ -89,10 +94,10 @@ and if `doOtherAction` of type 'TYPE' is called with unknown parameters, an appr
 
 Note that if `times` is not provided, an error is thrown if the method is never called.
 
-The `strict` flag causes an error to be thrown the moment a non-matching call to a same-typed
-action is encountered. It is true by default. Setting it to false will ignore similar actions with non-matching parameters.
+The `strict` flag causes an error to be thrown the moment a non-matching action with a same type is dispatched.
+It is `true` by default. Setting it to `false` will ignore similar actions with non-matching parameters.
  
-### config.expectedCalls
+## config.expectedCalls
 
 `expectedCalls`: `Object` where each key is an async method (dispatched with `call` -- note that the `retry` effect is treated as a `call`).
 Each value is an array of objects containing `times`, `params`, `throw`, `output` and `call` (all optional). For instance,
@@ -111,7 +116,7 @@ Note that if `times` is not provided, it acts as "at least once" an error is thr
 
 Only one of `output`, `throw` or `call: true` should ever be provided.
 
-### config.expectedGenerators
+## config.expectedGenerators
 
 `expectedGenerators`: `Object` where each key is the ID of a mocked generator (use mockGenerator).
 Each value is an array of objects containing `times`, `params`, `throw`, `call` and `output` (all optional).
@@ -161,13 +166,13 @@ Note that if `times` is not provided, it acts as "at least once" and an error is
 
 Only one of `output`, `throw` or `call: true` should ever be provided.
 
-### config.effectiveActions
+## config.effectiveActions
 
-`effectiveActions`: `Action[]` Indicating which actions are "active" in the context of take/takeEvery/takeLatest/takeLeading/debounce/throttle effects.
-Note that by default, if this is not specified, the first argument of the "run" method is considered to be a contextual action,
-unless the first argument is not an action.
+`effectiveActions`: `Action[]` Indicating which actions are "active" in the context of `take`, `takeEvery`, `takeLatest`, `takeLeading`, `debounce`, `throttle` effects. By default, if `effectiveActions` is not specified, the first argument of the "run" method is considered to be a contextual action.
 
-### Partial param matching
+Each time an effect "consumes" an `effectiveActions`, it is removed from the list. If an effect finds no match in `effectiveActions`, normal concurrent behavior happens.
+
+## Partial param matching
 
 When providing a `params` array to match, you can use `PLACEHOLDER_ARGS` to specify a logic for matching different from equality.
 
@@ -182,59 +187,85 @@ import { PLACEHOLDER_ARGS } from 'saga-tester';
 - `PLACEHOLDER_ARGS.TYPE(type)` inside a `params` array to indicate a value of `typeof type`.
 - `PLACEHOLDER_ARGS.FN((value) => boolean)` inside a `params` array to indicate a value for which the method returns true.
 
-## Concurrent execution
+## Concurrent behavior
 
-While SagaTester seeks to be order-independent, it does simulate concurrently executing tasks, and these tasks can be said to execute within a certain delay, which can cause them to execute in a specific order.
+SagaTester can simulate concurrently executing tasks, and these tasks can be made to execute after a certain pseudo-delay, which can cause them to execute in a specific order, which can be useful to test code which, for instance, needs one task to finish first, or for a cancellation to happen mid-execution.
 
 Any `call`, `fork`, or `spawn` can be mocked using `expectedGenerators` or `expectedCalls`, and the parameter `wait` can be provided to indicate that some virtual time should elapse before the resulting work should be executed.
 
 - If `wait` is falsey, the work will be ran immediately.
-- If it is a `number`, it will wait that given number.
+- If it is a `number`, it will wait that given number (it is a pseudo-delay, meaning the test does not actually wait; the number dictates in which order to run the tasks).
 - If it is `true`, it will be ran only when all other tasks which can be run have ran.
 - All pending work with identical `wait` are ran simultaneously.
 
 The supported saga effects simulate `redux-saga` behavior, meaning that:
 
-- a task will wait for a `join` to resolve,
-- a task will wait for `fork`'ed tasks to finish before resolving, but not `spawn`'ed tasks.
-- cancellation will spread to the children
+- A task will wait for a `join` to resolve,
+- A task will wait for `fork`'ed tasks to finish before resolving, but not `spawn`'ed tasks.
+- Cancellation will spread to the children.
+- Unhandled errors will bubble up from the children to the parents, and cause siblings to be cancelled if the parent cannot handle the error.
 - `all` will await all of its children.
 - `race` resolves when one of its children completes, and cancels all of the losers.
 - `delay(time)` acts as a task with `wait: time`.
 - When multiple tasks are blocked, the fastest task (lowest `wait`) is ran.
+- A task will block after a `take` effect, unblocking only when the right action is dispatched.
+- A higher effect method like `takeLeading`, `takeLatest`, `takeEvery`, `debounce` and `throttle` will create new tasks when matching actions, in the manner specified in the redux-saga api (see tests for examples).
 
-A current limitation is that `take`, `debounce`, `takeLatest`, `takeEvery`, `takeLeading` and `throttle` do not behave concurrently; they will merely be executed instantly if a matching action is found. Likewise, `putResolve` does not wait for anything. This will be adjusted in 1.4.0.
+## Handling promises
 
-### config.options
+To correctly handle promises, which includes yielded promises, `call` containing promises, or async redux-thunk-style actions with promises, you must use `runAsync` instead of `run`. You can see examples in the `reduxThunkActions` tests.
+
+SagaTester will fail if the promises remain unresolved while nothing else is happening (it will interpret it as a deadlock). You should consider mocking your promises or mocking the relevant setTimeouts.
+
+## Handling setTimeout
+
+To handle setTimeout correctly, you will need to mock timers and to run them using `side effects` (see below). There is no built-in way to mock timers, but most javascript unit test libraries offer ways to do it. `reduxThunkActions` tests have examples of timers mocked using the `jest` library.
+
+## config.sideEffects
+
+Side effects are an advanced element of SagaTester which are useful to test awkward cases like infinite loops, where you may want to test a case of a loop running once, but without causing your test to loop infinitely itself.
+
+Side effects are a way to act "as if" there were additional things going on outside of the tested saga, and can include:
+
+- `{ wait?: number | boolean, effect: put(someAction) }`
+- `{ wait?: number | boolean, effect: fork(someGeneratorFunction) }`
+- `{ wait?: number | boolean, effect: spawn(someGeneratorFunction) }`
+- `{ wait?: number | boolean, effect: call(someMethod) }` - useful to run timers
+- `{ wait?: number | boolean, effect: cancel() }` - this will cancel the main saga specifically
+- `{ wait?: number | boolean, changeSelectorConfig: (prevSelectorConfig) => newSelectorConfig }` - alters `config.selectorConfig` for the rest of the run
+
+Side effects do not register in `config.expectedActions` or `config.expectedCalls` and therefore cannot fail your test.
+
+For examples, you can check the sideEffects tests.
+
+## config.options
 
 These offer additional hooks to modify how sagaTester runs.
 
 - `config.options.stepLimit`, default: `1000`. When sagaTester has ran for this many steps, it fails. This helps detect infinite loops.
-- `config.options.yieldDecreasesTimer`, default: `false`. If true, each step decreases the times of active tasks by 1 (deprecated).
+- (deprecated) `config.options.yieldDecreasesTimer`, default: `false`. If true, each step decreases the times of active tasks by 1.
 - `config.options.usePriorityConcurrency`, default: `false`. If `false`, when e.g. `task1.wait = 40` runs while `task2.wait = 60` is pending, `task2` will be lowered to `wait = 20` (60 - 40 = 20). If `usePriorityConcurrency` is `true`, task timers are not lowered, and instead act like priority weights.
 - `config.options.waitForSpawned`, default: `false`. If `false`, a spawned task will only resolve if it is fast enough to run during the execution of the parent saga. If `true`, each spawned task is awaited when the parent saga finishes, and sagaTester only completes when all spawned tasks have resolved.
-
-### Run without failing
-
-In rare cases, you might want to run the saga without causing failures.
-It is possible to do this by providing a third parameter, e.g.
-
-```js
-const tester = new SagaTester(saga, config, false); // <= assert false
-tester.run(action);
-expect(tester.returnValue).toBe('something');
-expect(tester.errorList.length).toBe(0);
-```
+- `config.options.executeTakeGeneratorsOnlyOnce`, default: `false`.
+  - If `true`, effects `debounce`, `throttle`, `takeEvery`, `takeLeading` and `takeLatest` will only ever be executed once.
+  - By default, these effects will create as many tasks as would be created in a normal saga execution.
+- `config.options.ignoreTakeGenerators: pattern`, default: empty. Any action matched by the pattern (which can be a list, just like in the redux-saga api) will not trigger any take generators.
+- `config.options.swallowSpawnErrors`, default: `false`. If `true`, ignores errors thrown by `spawn`'ed tasks to prevent interrupting sagaTester.
+- `config.options.reduxThunkOptions`, default: `{}`. Passed as a third parameter to redux-thunk function actions.
 
 ### Debugging
 
 The `config` of the tester can contain a property `debug` which has options determining what to log.
 
 - `unblock` will log when executing the top priority call.
-- `bubble` will log when a task is finished and it needs to be "bubbled up" the dependency tree to run other tasks which depended on it.
-- `interrupt` will log when a task cannot be run immediately by the tester.
+- `bubble` will log when a task is finished and it needs to be "bubbled" up the dependency tree, possibly unblocking other tasks which depended on it.
+- `interrupt` will log when a task cannot be run immediately by the tester. This step can be noisy due to SagaTester needing to trigger context shifts for the sake of correct-order execution.
 
-The value of each debug property can be: `true`, `false`, a `number` representing the task id (which depends on the order in which it was created - this order is deterministic, so it will always be the same), a `string` representing the name or method associated with the task, or a list of `string` or `number` if several tasks are to be monitored.
+The value of each debug property can be: `true`, `false`, a `number` representing the task id (which depends on the order in which it was created - this order is deterministic, so it will always be the same), a `string` representing the name or method associated with the task, or a list of `string` or `number` if several tasks are to be monitored. Example:
+
+```js
+new SagaTester(saga, { debug: { bubble: ['foo', 3], unblock: true } }).run();
+```
 
 ## Roadmap
 

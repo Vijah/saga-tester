@@ -4,7 +4,7 @@ import INTERRUPTION_TYPES from './INTERRUPTION_TYPES';
 import debugShouldApply from './debugShouldApply';
 
 function makeInterruption(currentTask, results, type, dependencies, debugConfig) {
-  if (type !== INTERRUPTION_TYPES.WAITING_FOR_CHILDREN) {
+  if (![INTERRUPTION_TYPES.WAITING_FOR_CHILDREN].includes(type)) {
     // eslint-disable-next-line no-param-reassign
     currentTask.interruption = { pending: results, kind: type, dependencies };
   }

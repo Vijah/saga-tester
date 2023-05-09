@@ -4,7 +4,7 @@ type ActionType =
   { type: string, times?: number };
 type CallType =
   { times?: number, params?: any[], wait?: boolean | number, output?: any } |
-  { times?: number, params?: any[], throw: any } |
+  { times?: number, params?: any[], wait?: boolean | number, throw: any } |
   { times?: number, params?: any[], wait?: boolean | number, call: boolean };
 
 type DebugType = number | string | boolean | (number | string)[];
@@ -20,6 +20,7 @@ class SagaTester<Saga> {
       expectedCalls?: { [P: string]: CallType[] };
       expectedGenerators?: { [P: string]: CallType[] };
       effectiveActions?: Action<any>[];
+      sideEffects: ({ wait?: boolean | number, effect: { type: string } })[],
       debug?: {
         unblock?: DebugType;
         bubble?: DebugType;
@@ -32,12 +33,15 @@ class SagaTester<Saga> {
         waitForSpawned?: boolean;
         executeTakeGeneratorsOnlyOnce?: boolean;
         ignoreTakeGenerators: ActionMatcher | ActionMatcher[];
+        swallowSpawnErrors?: boolean;
       };
     },
     shouldAssert?: boolean,
   );
 
   run: ((...args: Parameters<Saga>) => void) | ((action: Action<any>) => void) | (() => void);
+
+  runAsync: ((...args: Parameters<Saga>) => Promise<void>) | ((action: Action<any>) => Promise<void>) | (() => Promise<void>);
 
   errorList: string[];
 
