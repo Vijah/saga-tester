@@ -33,7 +33,7 @@ describe('sagaTester - take effect', () => {
       return results;
     }
 
-    expect(new SagaTester(saga, {}).run()).toEqual([
+    expect(new SagaTester(saga, { options: { failOnUnconfigured: false } }).run()).toEqual([
       { type: 'TYPE', arg: 'arg', actionOrder: 1 },
       { type: 'WHATEVER', arg: 'arg', actionOrder: 2 },
       { type: 'The second one', arg: 'arg', actionOrder: 3 },
@@ -61,7 +61,7 @@ describe('sagaTester - take effect', () => {
       });
     }
 
-    expect(new SagaTester(saga, {}).run()).toEqual({
+    expect(new SagaTester(saga, { options: { failOnUnconfigured: false } }).run()).toEqual({
       a: { type: 'TYPE', arg: 'arg' },
       b: [{ type: 'TYPE', arg: 'arg' }, { type: 'The second one', arg: 'arg' }],
     });
@@ -80,7 +80,7 @@ describe('sagaTester - take effect', () => {
       ]);
     }
 
-    expect(new SagaTester(saga, {}).run()).toEqual([
+    expect(new SagaTester(saga, { options: { failOnUnconfigured: false } }).run()).toEqual([
       { type: 'TYPE', arg: 'arg' },
       { type: 'TYPE', arg: 'arg' },
     ]);
@@ -101,7 +101,7 @@ describe('sagaTester - take effect', () => {
       ]);
     }
 
-    expect(new SagaTester(saga, {}).run()).toEqual([
+    expect(new SagaTester(saga, { options: { failOnUnconfigured: false } }).run()).toEqual([
       { type: 'TYPE', arg: 'arg' },
       { type: 'TYPE2', arg: 'arg' },
     ]);
@@ -121,7 +121,7 @@ describe('sagaTester - take effect', () => {
       ]);
     }
 
-    expect(new SagaTester(saga, {}).run()).toEqual([
+    expect(new SagaTester(saga, { options: { failOnUnconfigured: false } }).run()).toEqual([
       { type: 'TYPE2', arg: 'arg' },
     ]);
   });
@@ -139,7 +139,7 @@ describe('sagaTester - take effect', () => {
       });
     }
 
-    expect(new SagaTester(saga, {}).run()).toEqual({
+    expect(new SagaTester(saga, { options: { failOnUnconfigured: false } }).run()).toEqual({
       a: { type: 'TYPE', arg: 'arg' },
       b: { type: 'TYPE', arg: 'arg' },
     });
@@ -158,7 +158,7 @@ describe('sagaTester - take effect', () => {
       });
     }
 
-    expect(new SagaTester(saga, {}).run()).toEqual({
+    expect(new SagaTester(saga, { options: { failOnUnconfigured: false } }).run()).toEqual({
       a: undefined,
       b: [{ type: 'TYPE', arg: 'arg' }, undefined],
     });

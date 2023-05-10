@@ -1,3 +1,37 @@
+## 2.0.0
+
+- cleanup api by merging expectedGenerators and expectedCalls into one config.
+- make 'expectedCalls' a list of objects with a name property, so it better resembles the expectedAction config (less confusing)
+
+### Breaking changes
+- Move `config.selectorConfig.__passOnUndefined` to `config.options.passOnUndefinedSelector`.
+- Remove deprecated option `config.options.config.options.yieldDecreasesTimer`.
+- Stop adding 1 on initialized of number-type `wait` configs (risks of affecting existing tests is very low, unless the configs were 1-unit close to each other).
+
+- Unconfigured generators now fail by default.
+- Added `config.options.failOnUnconfigured`, which can be set to `false` if you want ANY unconfigured calls not to fail the SagaTester.
+
+- Remove `config.expectedGenerators`. All is moved in `config.expectedCalls`.
+- Change `config.expectedCalls` from an object to a list, where all elements have a property `name`.
+
+BEFORE
+```js
+expectedCalls: {
+  method1: [{ times: 1, params: ['arg1'] }],
+},
+expectedGenerators: {
+  method2: [{ times: 1, params: ['arg2'] }],
+},
+```
+
+AFTER
+```js
+expectedCalls: [
+  { name: 'method1', times: 1, params: ['arg1'] },
+  { name: 'method2', times: 1, params: ['arg2'] },
+],
+```
+
 ## 1.4.0
 
 ### Breaking changes

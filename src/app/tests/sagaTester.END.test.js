@@ -64,6 +64,7 @@ describe('sagaTester - END action', () => {
         { action: { type: 'CALLED', order: 3, arg: END }, times: 1 },
         { action: { type: 'CALLED', order: 5, arg: 'wait' }, times: 1 },
       ],
+      options: { failOnUnconfigured: false },
     }).run({ type: 'yes' });
   });
   it('should cancel children tasks as well', () => {
@@ -115,7 +116,7 @@ describe('sagaTester - END action', () => {
       return yield join([task1, task2, task3]);
     }
 
-    expect(new SagaTester(saga, {}).run()).toEqual([
+    expect(new SagaTester(saga, { options: { failOnUnconfigured: false } }).run()).toEqual([
       ['take-NOTHING-cancelled-true-order-3', 'child-take-cancelled-true-order-2'],
       ['take-NOTHING-cancelled-true-order-4', ['child-take-cancelled-true-order-1']],
       [`takeMaybe-${END.type}-cancelled-false-order-5`, 'child-takeMaybe-cancelled-false-order-7'],
@@ -186,7 +187,7 @@ describe('sagaTester - END action', () => {
       return yield join([task1, task2, task3, task4]);
     }
 
-    expect(new SagaTester(saga, {}).run()).toEqual([
+    expect(new SagaTester(saga, { options: { failOnUnconfigured: false } }).run()).toEqual([
       `takeMaybeAll-${END.type}-${END.type}-cancelled-false-order-3`,
       `takeMaybeRace-${END.type}-${END.type}-cancelled-false-order-4`,
       'takeAll-NOTHING-NOTHING-cancelled-true-order-1',

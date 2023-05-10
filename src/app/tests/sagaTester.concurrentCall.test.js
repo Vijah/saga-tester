@@ -31,19 +31,15 @@ describe('concurrent call', () => {
     }
 
     expect(new SagaTester(saga, {
-      expectedCalls: {
-        method: [
-          { params: ['arg1-1'], call: true, wait: 160 },
-          { params: ['arg1-2'], call: true, wait: true },
-          { params: ['arg2-1'], call: true, wait: 100 },
-          { params: ['arg2-2'], call: true, wait: 300 },
-        ],
-        methodNested: [
-          { params: ['arg1'], call: true, wait: false },
-          { params: ['arg2'], call: true, wait: 150 },
-          { params: ['mocked'], output: 'mocked-output', wait: 10 },
-        ],
-      },
+      expectedCalls: [
+        { name: 'method', params: ['arg1-1'], call: true, wait: 160 },
+        { name: 'method', params: ['arg1-2'], call: true, wait: true },
+        { name: 'method', params: ['arg2-1'], call: true, wait: 100 },
+        { name: 'method', params: ['arg2-2'], call: true, wait: 300 },
+        { name: 'methodNested', params: ['arg1'], call: true, wait: false },
+        { name: 'methodNested', params: ['arg2'], call: true, wait: 150 },
+        { name: 'methodNested', params: ['mocked'], output: 'mocked-output', wait: 10 },
+      ],
       options: {
         useStaticTimes: true,
       },

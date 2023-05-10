@@ -49,28 +49,24 @@ describe('debugBubbledTasks', () => {
     const logMock = jest.spyOn(console, 'log').mockImplementation();
 
     expect(new SagaTester(saga, {
-      expectedGenerators: {
-        method: [
-          { params: ['arg1'], call: true, wait: 50 },
-          { params: ['arg2'], call: true, wait: true },
-          { params: ['arg3'], call: true, wait: 70 },
-          { params: ['arg4'], call: true, wait: 60 },
-          { params: ['arg5'], call: true, wait: 100 },
-          { params: ['arg6'], call: true, wait: 200 },
-          { params: ['arg7'], call: true, wait: 80 },
-          { params: ['arg8'], call: true, wait: 110 },
-          { params: ['deep'], call: true, wait: 90 },
-        ],
-        methodNested: [{ params: ['arg6'], call: true, wait: 55 }],
-      },
-      expectedCalls: {
-        calledMethod: [{ params: ['arg8'], call: true }],
-        deeplyNestedMethodWithVeryLongName: [{ call: true }],
-      },
+      expectedCalls: [
+        { name: 'calledMethod', params: ['arg8'], call: true },
+        { name: 'deeplyNestedMethodWithVeryLongName', call: true },
+        { name: 'method', params: ['arg1'], call: true, wait: 50 },
+        { name: 'method', params: ['arg2'], call: true, wait: true },
+        { name: 'method', params: ['arg3'], call: true, wait: 70 },
+        { name: 'method', params: ['arg4'], call: true, wait: 60 },
+        { name: 'method', params: ['arg5'], call: true, wait: 100 },
+        { name: 'method', params: ['arg6'], call: true, wait: 200 },
+        { name: 'method', params: ['arg7'], call: true, wait: 80 },
+        { name: 'method', params: ['arg8'], call: true, wait: 110 },
+        { name: 'method', params: ['deep'], call: true, wait: 90 },
+        { name: 'methodNested', params: ['arg6'], call: true, wait: 55 },
+      ],
       debug: {
         bubble: true,
       },
-      options: { yieldDecreasesTimer: true, useStaticTimes: true },
+      options: { useStaticTimes: true },
     }).run()).toEqual({
       task1: 'arg1-executed-1', // wait 50
       task2: 'arg2-executed-9', // wait: true (aka after everything else)
@@ -115,10 +111,10 @@ calledMethod        id: 10 wait: generator Dependencies: [11] Partially resolved
   Interruption kind: @@sagaTester__join__, Pending: 6
 ]
 root                id: 0  wait: generator Dependencies: [7] (pending)
-methodNested        id: 6  wait: 53        Dependencies: [] (pending)
-method              id: 4  wait: 56        Dependencies: [] (pending)
-method              id: 3  wait: 65        Dependencies: [] (pending)
-method              id: 5  wait: 97        Dependencies: [] (pending)
+methodNested        id: 6  wait: 55        Dependencies: [] (pending)
+method              id: 4  wait: 60        Dependencies: [] (pending)
+method              id: 3  wait: 70        Dependencies: [] (pending)
+method              id: 5  wait: 100       Dependencies: [] (pending)
 method              id: 11 wait: 110       Dependencies: [] (pending)
 method              id: 2  wait: true      Dependencies: [] (pending)
 `.replace(/\r\n/g, '\n'));
@@ -129,7 +125,7 @@ method              id: 13 wait: false    value: arg7-executed-4
 -- TREE:
 calledMethod        id: 10 wait: generator Dependencies: [11] Partially resolved value: 
 [
-  TASK method              id: 11 wait: 105      
+  TASK method              id: 11 wait: 110      
 ]
 deeplyNestedMethodWithVeryLongNameid: 14 wait: generator Dependencies: [15] Partially resolved value: 
 TASK method              id: 15 wait: 90       
@@ -151,11 +147,11 @@ TASK method              id: 15 wait: 90
   Interruption kind: @@sagaTester__join__, Pending: 6
 ]
 root                id: 0  wait: generator Dependencies: [7] (pending)
-methodNested        id: 6  wait: 48        Dependencies: [14] (pending)
+methodNested        id: 6  wait: 55        Dependencies: [14] (pending)
 method              id: 15 wait: 90        Dependencies: [] (pending)
-method              id: 5  wait: 92        Dependencies: [] (pending)
-method              id: 11 wait: 105       Dependencies: [] (pending)
-method              id: 12 wait: 197       Dependencies: [] (pending)
+method              id: 5  wait: 100       Dependencies: [] (pending)
+method              id: 11 wait: 110       Dependencies: [] (pending)
+method              id: 12 wait: 200       Dependencies: [] (pending)
 method              id: 2  wait: true      Dependencies: [] (pending)
 `.replace(/\r\n/g, '\n'));
 

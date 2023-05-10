@@ -28,17 +28,13 @@ describe('sagaTester - spawn effect', () => {
     }
 
     expect(new SagaTester(saga, {
-      expectedGenerators: {
-        deepParentMethod: [{ call: true }],
-        parentMethod: [
-          { params: ['arg1'], call: true, wait: 50 },
-          { params: ['arg2'], call: true },
-        ],
-        method: [
-          { params: ['arg2-arg1'], call: true },
-          { params: ['arg2-arg2'], call: true, wait: 60 },
-        ],
-      },
+      expectedCalls: [
+        { name: 'deepParentMethod', call: true },
+        { name: 'parentMethod', params: ['arg1'], call: true, wait: 50 },
+        { name: 'parentMethod', params: ['arg2'], call: true },
+        { name: 'method', params: ['arg2-arg1'], call: true },
+        { name: 'method', params: ['arg2-arg2'], call: true, wait: 60 },
+      ],
       options: {
         useStaticTimes: true,
       },
@@ -72,19 +68,15 @@ describe('sagaTester - spawn effect', () => {
     }
 
     expect(new SagaTester(saga, {
-      expectedGenerators: {
-        deepParentMethod: [{ call: true }],
-        parentMethod: [
-          { params: ['arg1'], call: true, wait: 50 },
-          { params: ['arg2'], call: true },
-        ],
-        method: [
-          { params: ['arg1-arg1'], call: true, wait: 25 },
-          { params: ['arg1-arg2'], call: true },
-          { params: ['arg2-arg1'], call: true },
-          { params: ['arg2-arg2'], call: true, wait: 60 },
-        ],
-      },
+      expectedCalls: [
+        { name: 'deepParentMethod', call: true },
+        { name: 'parentMethod', params: ['arg1'], call: true, wait: 50 },
+        { name: 'parentMethod', params: ['arg2'], call: true },
+        { name: 'method', params: ['arg1-arg1'], call: true, wait: 25 },
+        { name: 'method', params: ['arg1-arg2'], call: true },
+        { name: 'method', params: ['arg2-arg1'], call: true },
+        { name: 'method', params: ['arg2-arg2'], call: true, wait: 60 },
+      ],
       options: {
         useStaticTimes: true,
         waitForSpawned: true,

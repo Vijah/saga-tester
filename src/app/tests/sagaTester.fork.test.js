@@ -40,10 +40,13 @@ describe('fork', () => {
         { action: { type: 'TYPE3', arg: 'arg3-value' }, times: 1 },
         { action: { type: 'TYPE4', arg: 'arg4-value' }, times: 1 },
       ],
-      expectedGenerators: {
-        method1: [{ times: 1, params: ['arg1'] }],
+      expectedCalls: [
+        { name: 'method1', times: 1, params: ['arg1'] },
+      ],
+      options: {
+        stepLimit: 20,
+        failOnUnconfigured: false,
       },
-      options: { stepLimit: 20 },
     }).run();
   });
   it('should treat fork as if creating a task with the given output, deferring its execution, and handling cancellation status', () => {
@@ -101,20 +104,16 @@ describe('fork', () => {
         { action: { type: 'TYPE', value: 'finally-method2-arg6-cancelled' }, times: 1 },
         { action: { type: 'TYPE', value: 'finally-method2-arg7-cancelled' }, times: 1 },
       ],
-      expectedCalls: {
-        mockCall: [{ times: 2, throw: 'whatever' }],
-      },
-      expectedGenerators: {
-        method1: [{ times: 1, params: ['arg1'], output: 'the-mocked-one' }],
-        method2: [
-          { params: ['arg2'], call: true, wait: true },
-          { params: ['arg3'], call: true, wait: true },
-          { params: ['arg4'], call: true, wait: false },
-          { params: ['arg5'], call: true, wait: true },
-          { params: ['arg6'], call: true, wait: true },
-          { params: ['arg7'], call: true, wait: true },
-        ],
-      },
+      expectedCalls: [
+        { name: 'mockCall', times: 2, throw: 'whatever' },
+        { name: 'method1', times: 1, params: ['arg1'], output: 'the-mocked-one' },
+        { name: 'method2', params: ['arg2'], call: true, wait: true },
+        { name: 'method2', params: ['arg3'], call: true, wait: true },
+        { name: 'method2', params: ['arg4'], call: true, wait: false },
+        { name: 'method2', params: ['arg5'], call: true, wait: true },
+        { name: 'method2', params: ['arg6'], call: true, wait: true },
+        { name: 'method2', params: ['arg7'], call: true, wait: true },
+      ],
     };
 
     // Run the saga
@@ -160,9 +159,9 @@ describe('fork', () => {
         { action: { type: 'ROOT_END' }, times: 0 },
         { action: { type: 'ROOT_FINALLY', isCancelled: true }, times: 1 },
       ],
-      expectedGenerators: {
-        loopMethod: [{ times: 3, call: true, wait: false }],
-      },
+      expectedCalls: [
+        { name: 'loopMethod', times: 3, call: true, wait: false },
+      ],
     };
 
     // Run the saga
@@ -202,10 +201,10 @@ describe('fork', () => {
         { action: { type: 'ROOT_END' }, times: 1 },
         { action: { type: 'SLOW_METHOD_ENDED', isCancelled: false }, times: 1 },
       ],
-      expectedGenerators: {
-        loopMethod: [{ times: 1, call: true, wait: false }],
-        slowMethod: [{ times: 1, call: true, wait: false }],
-      },
+      expectedCalls: [
+        { name: 'loopMethod', times: 1, call: true, wait: false },
+        { name: 'slowMethod', times: 1, call: true, wait: false },
+      ],
     }).run();
   });
   it('should execute tasks joined simultaneously in the correct order', () => {
@@ -225,15 +224,12 @@ describe('fork', () => {
     }
 
     expect(new SagaTester(saga, {
-      expectedGenerators: {
-        method: [
-          { params: ['arg1'], call: true, wait: 1 },
-          { params: ['arg2'], call: true },
-          { params: ['arg3'], call: true, wait: 99 },
-          { params: ['arg4'], call: true, wait: 50 },
-        ],
-      },
-      options: { yieldDecreasesTimer: true },
+      expectedCalls: [
+        { name: 'method', params: ['arg1'], call: true, wait: 1 },
+        { name: 'method', params: ['arg2'], call: true },
+        { name: 'method', params: ['arg3'], call: true, wait: 99 },
+        { name: 'method', params: ['arg4'], call: true, wait: 50 },
+      ],
     }).run()).toEqual([
       'arg1-executed-2', // Delayed by one; executed after task2
       'arg2-executed-1', // wait is false by default; executed instantly
@@ -259,18 +255,14 @@ describe('fork', () => {
     }
 
     expect(new SagaTester(saga, {
-      expectedGenerators: {
-        parentMethod: [
-          { params: ['arg1'], call: true, wait: 50 },
-          { params: ['arg2'], call: true },
-        ],
-        method: [
-          { params: ['arg1-arg1'], call: true, wait: 25 },
-          { params: ['arg1-arg2'], call: true },
-          { params: ['arg2-arg1'], call: true },
-          { params: ['arg2-arg2'], call: true, wait: 60 },
-        ],
-      },
+      expectedCalls: [
+        { name: 'parentMethod', params: ['arg1'], call: true, wait: 50 },
+        { name: 'parentMethod', params: ['arg2'], call: true },
+        { name: 'method', params: ['arg1-arg1'], call: true, wait: 25 },
+        { name: 'method', params: ['arg1-arg2'], call: true },
+        { name: 'method', params: ['arg2-arg1'], call: true },
+        { name: 'method', params: ['arg2-arg2'], call: true, wait: 60 },
+      ],
       options: {
         useStaticTimes: true,
       },
@@ -301,18 +293,14 @@ describe('fork', () => {
     }
 
     expect(new SagaTester(saga, {
-      expectedGenerators: {
-        parentMethod: [
-          { params: ['arg1'], call: true, wait: 50 },
-          { params: ['arg2'], call: true },
-        ],
-        method: [
-          { params: ['arg1-arg1'], call: true, wait: 25 },
-          { params: ['arg1-arg2'], call: true },
-          { params: ['arg2-arg1'], call: true },
-          { params: ['arg2-arg2'], call: true, wait: 60 },
-        ],
-      },
+      expectedCalls: [
+        { name: 'parentMethod', params: ['arg1'], call: true, wait: 50 },
+        { name: 'parentMethod', params: ['arg2'], call: true },
+        { name: 'method', params: ['arg1-arg1'], call: true, wait: 25 },
+        { name: 'method', params: ['arg1-arg2'], call: true },
+        { name: 'method', params: ['arg2-arg1'], call: true },
+        { name: 'method', params: ['arg2-arg2'], call: true, wait: 60 },
+      ],
       options: {
         useStaticTimes: true,
       },
@@ -349,28 +337,22 @@ describe('fork', () => {
     }
 
     expect(new SagaTester(saga, {
-      expectedGenerators: {
-        parentMethod: [
-          { params: ['slow'], call: true, wait: 100 },
-          { params: ['fast'], call: true, wait: 10 },
-        ],
-        deepParentMethod: [
-          { params: ['slow-slow'], call: true, wait: 100 },
-          { params: ['fast-slow'], call: true, wait: 100 },
-          { params: ['slow-fast'], call: true, wait: 10 },
-          { params: ['fast-fast'], call: true },
-        ],
-        method: [
-          { params: ['slow-slow-slow'], call: true, wait: 100 },
-          { params: ['slow-fast-slow'], call: true, wait: 100 },
-          { params: ['slow-slow-fast'], call: true },
-          { params: ['slow-fast-fast'], call: true, wait: 10 },
-          { params: ['fast-slow-slow'], call: true, wait: 100 },
-          { params: ['fast-fast-slow'], call: true, wait: 100 },
-          { params: ['fast-slow-fast'], call: true },
-          { params: ['fast-fast-fast'], call: true },
-        ],
-      },
+      expectedCalls: [
+        { name: 'parentMethod', params: ['slow'], call: true, wait: 100 },
+        { name: 'parentMethod', params: ['fast'], call: true, wait: 10 },
+        { name: 'deepParentMethod', params: ['slow-slow'], call: true, wait: 100 },
+        { name: 'deepParentMethod', params: ['fast-slow'], call: true, wait: 100 },
+        { name: 'deepParentMethod', params: ['slow-fast'], call: true, wait: 10 },
+        { name: 'deepParentMethod', params: ['fast-fast'], call: true },
+        { name: 'method', params: ['slow-slow-slow'], call: true, wait: 100 },
+        { name: 'method', params: ['slow-fast-slow'], call: true, wait: 100 },
+        { name: 'method', params: ['slow-slow-fast'], call: true },
+        { name: 'method', params: ['slow-fast-fast'], call: true, wait: 10 },
+        { name: 'method', params: ['fast-slow-slow'], call: true, wait: 100 },
+        { name: 'method', params: ['fast-fast-slow'], call: true, wait: 100 },
+        { name: 'method', params: ['fast-slow-fast'], call: true },
+        { name: 'method', params: ['fast-fast-fast'], call: true },
+      ],
       options: {
         useStaticTimes: true,
       },
@@ -406,18 +388,14 @@ describe('fork', () => {
     }
 
     expect(new SagaTester(saga, {
-      expectedGenerators: {
-        parentMethod: [
-          { params: ['arg1'], call: true, wait: 50 },
-          { params: ['arg2'], call: true },
-        ],
-        method: [
-          { params: ['arg1-arg1'], call: true, wait: 25 },
-          { params: ['arg1-arg2'], call: true },
-          { params: ['arg2-arg1'], call: true },
-          { params: ['arg2-arg2'], call: true, wait: 60 },
-        ],
-      },
+      expectedCalls: [
+        { name: 'parentMethod', params: ['arg1'], call: true, wait: 50 },
+        { name: 'parentMethod', params: ['arg2'], call: true },
+        { name: 'method', params: ['arg1-arg1'], call: true, wait: 25 },
+        { name: 'method', params: ['arg1-arg2'], call: true },
+        { name: 'method', params: ['arg2-arg1'], call: true },
+        { name: 'method', params: ['arg2-arg2'], call: true, wait: 60 },
+      ],
       options: {
         useStaticTimes: false,
       },
@@ -471,24 +449,20 @@ describe('fork', () => {
     }
 
     expect(new SagaTester(saga, {
-      expectedGenerators: {
-        method: [
-          { params: ['arg1'], call: true, wait: 50 },
-          { params: ['arg2'], call: true, wait: true },
-          { params: ['arg3'], call: true, wait: 70 },
-          { params: ['arg4'], call: true, wait: 60 },
-          { params: ['arg5'], call: true, wait: 100 },
-          { params: ['arg6'], call: true, wait: 200 },
-          { params: ['arg7'], call: true, wait: 80 },
-          { params: ['arg8'], call: true, wait: 110 },
-          { params: ['deep'], call: true, wait: 90 },
-        ],
-        methodNested: [{ params: ['arg6'], call: true, wait: 55 }],
-      },
-      expectedCalls: {
-        calledMethod: [{ params: ['arg8'], call: true }],
-        deeplyNestedMethod: [{ call: true }],
-      },
+      expectedCalls: [
+        { name: 'method', params: ['arg1'], call: true, wait: 50 },
+        { name: 'method', params: ['arg2'], call: true, wait: true },
+        { name: 'method', params: ['arg3'], call: true, wait: 70 },
+        { name: 'method', params: ['arg4'], call: true, wait: 60 },
+        { name: 'method', params: ['arg5'], call: true, wait: 100 },
+        { name: 'method', params: ['arg6'], call: true, wait: 200 },
+        { name: 'method', params: ['arg7'], call: true, wait: 80 },
+        { name: 'method', params: ['arg8'], call: true, wait: 110 },
+        { name: 'method', params: ['deep'], call: true, wait: 90 },
+        { name: 'methodNested', params: ['arg6'], call: true, wait: 55 },
+        { name: 'calledMethod', params: ['arg8'], call: true },
+        { name: 'deeplyNestedMethod', call: true },
+      ],
       options: {
         useStaticTimes: true,
       },
@@ -539,10 +513,10 @@ describe('fork', () => {
     }
 
     new SagaTester(saga, {
-      expectedGenerators: {
-        method: [{ times: 1, wait: true, call: true }],
-        methodNested: [{ times: 1, wait: false, call: true }],
-      },
+      expectedCalls: [
+        { name: 'method', times: 1, wait: true, call: true },
+        { name: 'methodNested', times: 1, wait: false, call: true },
+      ],
       expectedActions: [
         { type: 'method-cancelled', times: 1 },
         { type: 'methodNested-cancelled', times: 1 },
@@ -629,46 +603,42 @@ describe('fork', () => {
     }
 
     expect(new SagaTester(saga, {
-      expectedGenerators: {
-        method: [
-          { params: ['arg1'], call: true, wait: 200 },
-          { params: ['arg2'], call: true, wait: true },
-          { params: ['arg3'], call: true, wait: 270 },
-          { params: ['arg4'], call: true, wait: 260 },
-          { params: ['arg5'], call: true, wait: 300 },
-          { params: ['arg6'], call: true, wait: 10 },
-          { params: ['arg7'], call: true, wait: 10 },
-          { params: ['arg8'], call: true, wait: 193 },
-          { params: ['deep'], call: true, wait: 290 },
-        ],
-        methodNested: [{ params: ['arg6'], call: true, wait: 10 }],
-      },
-      expectedCalls: {
-        calledMethod: [{ params: ['arg8'], call: true }],
-        deeplyNestedMethod: [{ call: true }],
-      },
+      expectedCalls: [
+        { name: 'method', params: ['arg1'], call: true, wait: 200 },
+        { name: 'method', params: ['arg2'], call: true, wait: true },
+        { name: 'method', params: ['arg3'], call: true, wait: 270 },
+        { name: 'method', params: ['arg4'], call: true, wait: 260 },
+        { name: 'method', params: ['arg5'], call: true, wait: 300 },
+        { name: 'method', params: ['arg6'], call: true, wait: 10 },
+        { name: 'method', params: ['arg7'], call: true, wait: 10 },
+        { name: 'method', params: ['arg8'], call: true, wait: 193 },
+        { name: 'method', params: ['deep'], call: true, wait: 290 },
+        { name: 'methodNested', params: ['arg6'], call: true, wait: 10 },
+        { name: 'calledMethod', params: ['arg8'], call: true },
+        { name: 'deeplyNestedMethod', call: true },
+      ],
       expectedActions: [
-        { action: { type: 'method-cancelled', arg: 'arg2' }, times: 1, strict: true },
-        { action: { type: 'method-cancelled', arg: 'arg3' }, times: 1, strict: true },
-        { action: { type: 'method-cancelled', arg: 'arg4' }, times: 1, strict: true },
-        { action: { type: 'method-cancelled', arg: 'arg5' }, times: 1, strict: true },
-        { action: { type: 'method-cancelled', arg: 'deep' }, times: 1, strict: true },
+        { action: { type: 'method-cancelled', arg: 'arg1' }, times: 1 },
+        { action: { type: 'method-cancelled', arg: 'arg2' }, times: 1 },
+        { action: { type: 'method-cancelled', arg: 'arg3' }, times: 1 },
+        { action: { type: 'method-cancelled', arg: 'arg4' }, times: 1 },
+        { action: { type: 'method-cancelled', arg: 'arg5' }, times: 1 },
+        { action: { type: 'method-cancelled', arg: 'deep' }, times: 1 },
         { type: 'deeplyNestedMethod-cancelled', times: 1 },
         { type: 'methodNested-cancelled', times: 1 },
         { type: 'calledMethod-cancelled', times: 0 },
       ],
-      options: { yieldDecreasesTimer: true },
     }).run()).toEqual({
-      task1: 'arg1-executed-3', // wait 200
+      task1: undefined, // wait 200
       task2: undefined, // wait: true (aka after everything else)
       sub: undefined,
       // wait 270, wait 260
       // wait 300
       // 10, 20, and 290, meaining two tasks actually finish early, but the parent task never ends
-      task8: undefined, // 'calledMethod-arg8-executed-4'
-      // task8 ENDS AT THE SAME TIME AS TASK1, but task 1 is processed before, and root is resolved without it.
+      task8: 'calledMethod-arg8-executed-3',
+      // task8 ENDS AT THE SAME TIME AS TASK1.
       // This test documents this behavior; it would be difficult to modify the code so that tasks that end simultaneously are resolved simultaneously.
-      // In addition, this is not really realistic behavior, so we will leave it as is.
+      // In addition, this is not really realistic behavior, so it will be left as is.
     });
   });
   it('should end forked tasks and awaited calls in the correct order when they are yielded simultaneously inside a race effect', () => {
@@ -708,24 +678,19 @@ describe('fork', () => {
     }
 
     expect(new SagaTester(saga, {
-      expectedCalls: {
-        method: [
-          { params: ['arg1'], call: true, wait: 200 },
-          { params: ['arg2'], call: true, wait: true },
-          { params: ['arg3'], call: true, wait: 270 },
-          { params: ['arg4'], call: true, wait: 260 },
-          { params: ['arg5'], call: true, wait: 300 },
-          { params: ['arg6'], call: true, wait: 10 },
-          { params: ['arg7'], call: true, wait: 10 },
-          { params: ['deep'], call: true, wait: 290 },
-        ],
-        calledMethod: [{ params: ['arg8'], call: true, wait: 200 }],
-        deeplyNestedMethod: [{ call: true }],
-      },
-      expectedGenerators: {
-        methodNested: [{ params: ['arg6'], call: true, wait: 10 }],
-      },
-      options: { yieldDecreasesTimer: true },
+      expectedCalls: [
+        { name: 'method', params: ['arg1'], call: true, wait: 200 },
+        { name: 'method', params: ['arg2'], call: true, wait: true },
+        { name: 'method', params: ['arg3'], call: true, wait: 270 },
+        { name: 'method', params: ['arg4'], call: true, wait: 260 },
+        { name: 'method', params: ['arg5'], call: true, wait: 300 },
+        { name: 'method', params: ['arg6'], call: true, wait: 10 },
+        { name: 'method', params: ['arg7'], call: true, wait: 10 },
+        { name: 'method', params: ['deep'], call: true, wait: 290 },
+        { name: 'calledMethod', params: ['arg8'], call: true, wait: 200 },
+        { name: 'deeplyNestedMethod', call: true },
+        { name: 'methodNested', params: ['arg6'], call: true, wait: 10 },
+      ],
     }).run()).toEqual({
       task1: 'arg1-executed-3', // wait 200
       task2: undefined, // wait: true (aka after everything else)
@@ -758,18 +723,14 @@ describe('fork', () => {
     }
 
     expect(new SagaTester(saga, {
-      expectedGenerators: {
-        method: [
-          { params: ['arg1-1'], call: true, wait: 160 },
-          { params: ['arg1-2'], call: true, wait: true },
-          { params: ['arg2-1'], call: true, wait: 100 },
-          { params: ['arg2-2'], call: true, wait: 300 },
-        ],
-        methodNested: [
-          { params: ['arg1'], call: true, wait: false },
-          { params: ['arg2'], call: true, wait: 150 },
-        ],
-      },
+      expectedCalls: [
+        { name: 'method', params: ['arg1-1'], call: true, wait: 160 },
+        { name: 'method', params: ['arg1-2'], call: true, wait: true },
+        { name: 'method', params: ['arg2-1'], call: true, wait: 100 },
+        { name: 'method', params: ['arg2-2'], call: true, wait: 300 },
+        { name: 'methodNested', params: ['arg1'], call: true, wait: false },
+        { name: 'methodNested', params: ['arg2'], call: true, wait: 150 },
+      ],
       options: {
         useStaticTimes: true,
       },
@@ -808,21 +769,17 @@ describe('fork', () => {
     }
 
     expect(new SagaTester(saga, {
-      expectedGenerators: {
-        method: [
-          { params: ['arg1'], call: true, wait: false },
-          { params: ['arg2'], call: true, wait: 100 },
-          { params: ['arg3'], call: true, wait: true },
-          { params: ['arg1-sub'], call: true, wait: true },
-          { params: ['arg2-sub'], call: true, wait: 200 },
-          { params: ['arg3-sub'], call: true, wait: false },
-        ],
-        methodNested: [
-          { params: ['arg1', PLACEHOLDER_ARGS.TYPE('object')], call: true, wait: 50 },
-          { params: ['arg2', PLACEHOLDER_ARGS.TASK], call: true, wait: 50 },
-          { params: ['arg3', PLACEHOLDER_ARGS.FN((value) => value.id === 3)], call: true, wait: 50 },
-        ],
-      },
+      expectedCalls: [
+        { name: 'method', params: ['arg1'], call: true, wait: false },
+        { name: 'method', params: ['arg2'], call: true, wait: 100 },
+        { name: 'method', params: ['arg3'], call: true, wait: true },
+        { name: 'method', params: ['arg1-sub'], call: true, wait: true },
+        { name: 'method', params: ['arg2-sub'], call: true, wait: 200 },
+        { name: 'method', params: ['arg3-sub'], call: true, wait: false },
+        { name: 'methodNested', params: ['arg1', PLACEHOLDER_ARGS.TYPE('object')], call: true, wait: 50 },
+        { name: 'methodNested', params: ['arg2', PLACEHOLDER_ARGS.TASK], call: true, wait: 50 },
+        { name: 'methodNested', params: ['arg3', PLACEHOLDER_ARGS.FN((value) => value.id === 3)], call: true, wait: 50 },
+      ],
     }).run()).toEqual([
       [
         'arg1-childOrder-1',
@@ -860,20 +817,15 @@ describe('fork', () => {
     }
 
     expect(new SagaTester(saga, {
-      expectedGenerators: {
-        method: [
-          { params: ['main'], call: true, wait: true },
-          { params: ['arg1-sub'], call: true, wait: true },
-          { params: ['arg2-sub'], call: true, wait: 25 },
-          { params: ['arg3-sub'], call: true, wait: false },
-        ],
-        methodNested: [
-          { params: ['arg1', PLACEHOLDER_ARGS.ANY], call: true, wait: 50 },
-          { params: ['arg2', PLACEHOLDER_ARGS.ANY], call: true, wait: 50 },
-          { params: ['arg3', PLACEHOLDER_ARGS.ANY], call: true, wait: 50 },
-        ],
-      },
-      options: { yieldDecreasesTimer: false },
+      expectedCalls: [
+        { name: 'method', params: ['main'], call: true, wait: true },
+        { name: 'method', params: ['arg1-sub'], call: true, wait: true },
+        { name: 'method', params: ['arg2-sub'], call: true, wait: 25 },
+        { name: 'method', params: ['arg3-sub'], call: true, wait: false },
+        { name: 'methodNested', params: ['arg1', PLACEHOLDER_ARGS.ANY], call: true, wait: 50 },
+        { name: 'methodNested', params: ['arg2', PLACEHOLDER_ARGS.ANY], call: true, wait: 50 },
+        { name: 'methodNested', params: ['arg3', PLACEHOLDER_ARGS.ANY], call: true, wait: 50 },
+      ],
     }).run()).toEqual([
       [
         'main-childOrder-3',

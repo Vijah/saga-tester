@@ -65,8 +65,10 @@ describe('SagaTester', () => {
       expect(
         new SagaTester(saga, {
           selectorConfig: { someSelector: 'baz', reducerKey: 'reducerValue' },
-          expectedCalls: { someMethod: [{ times: 1, params: ['foo'], output: 'bar' }] },
-          expectedGenerators: { someGenerator: [{ times: 1, params: ['baz'], output: 'brak' }] },
+          expectedCalls: [
+            { name: 'someMethod', times: 1, params: ['foo'], output: 'bar' },
+            { name: 'someGenerator', times: 1, params: ['baz'], output: 'brak' },
+          ],
           expectedActions: [{ action: someAction('bar', 'reducerValue'), times: 1 }],
           effectiveActions: [{ type: 'someType', value: 'someValue' }],
         }).run('foo'),
@@ -96,15 +98,14 @@ describe('SagaTester', () => {
       const saga = function* irrelevant() { 'doNothing'; };
       expect(() => new SagaTester({}, {})).toThrow('The generator method received is invalid. It must be a reference to a generator method, and it cannot be a running generator.');
       expect(() => new SagaTester(saga(), {})).toThrow('The generator method received is invalid. It must be a reference to a generator method, and it cannot be a running generator.');
-      expect(() => new SagaTester(saga, { expectedActions: {} })).toThrow('expectedActions must be an array of object containing either an attribute "type" or "action"');
-      expect(() => new SagaTester(saga, { expectedActions: [{}] })).toThrow('expectedActions must be an array of object containing either an attribute "type" or "action"');
-      expect(() => new SagaTester(saga, { effectiveActions: {} })).toThrow('effectiveActions must be an array of object containing either an attribute "type" or "action"');
-      expect(() => new SagaTester(saga, { effectiveActions: [{}] })).toThrow('effectiveActions must be an array of object containing either an attribute "type" or "action"');
-      expect(() => new SagaTester(saga, { selectorConfig: [] })).toThrow('selectorConfig must be an object containing values');
-      expect(() => new SagaTester(saga, { expectedCalls: [] })).toThrow('expectedCalls must be an object containing arrays');
-      expect(() => new SagaTester(saga, { expectedCalls: { asd: {} } })).toThrow('expectedCalls must be an object containing arrays');
-      expect(() => new SagaTester(saga, { expectedGenerators: [] })).toThrow('expectedGenerators must be an object containing arrays');
-      expect(() => new SagaTester(saga, { expectedGenerators: { asd: {} } })).toThrow('expectedGenerators must be an object containing arrays');
+      expect(() => new SagaTester(saga, { expectedActions: {} })).toThrow('config.expectedActions must be a list of objects containing either an attribute "type" or "action"');
+      expect(() => new SagaTester(saga, { expectedActions: [{}] })).toThrow('config.expectedActions must be a list of objects containing either an attribute "type" or "action"');
+      expect(() => new SagaTester(saga, { effectiveActions: {} })).toThrow('config.effectiveActions must be a list of objects containing either an attribute "type" or "action"');
+      expect(() => new SagaTester(saga, { effectiveActions: [{}] })).toThrow('config.effectiveActions must be a list of objects containing either an attribute "type" or "action"');
+      expect(() => new SagaTester(saga, { selectorConfig: [] })).toThrow('config.selectorConfig must be an object containing values');
+      expect(() => new SagaTester(saga, { expectedCalls: [{}] })).toThrow('config.expectedCalls must be a list of objects containing a property "name"');
+      expect(() => new SagaTester(saga, { expectedCalls: { asd: {} } })).toThrow('config.expectedCalls must be a list of objects containing a property "name"');
+      expect(() => new SagaTester(saga, { expectedGenerators: [] })).toThrow('config.expectedGenerators was removed in 2.0.0; move them all inside expectedCalls');
 
       function* sagaWithTakeLatest() { yield takeLatest('TYPE', saga); }
       expect(() => new SagaTester(sagaWithTakeLatest, {}).run()).not.toThrow();
@@ -159,7 +160,7 @@ Error: Deadlock: 1 tasks did not finish. Remaining tasks:
 
       function promiseCall() { return new Promise((resolve) => { resolve(); }); }
       function* saga2() { yield call(promiseCall); }
-      expect(() => new SagaTester(saga2, { expectedCalls: { promiseCall: [{ call: true }] } }).run())
+      expect(() => new SagaTester(saga2, { expectedCalls: [{ name: 'promiseCall', call: true }] }).run())
         .toThrow('Received a promise inside the saga, but was not in async mode. To process promises, use runAsync instead of run.');
 
       function* saga3() { yield put(() => new Promise((resolve) => { resolve(); })); }
@@ -242,7 +243,10 @@ Error: ERROR`);
 
       // Saga Tester config
       const config = {
-        expectedCalls: { method1: [{ times: 1, params: ['arg1'], output: 'arg1' }], method2: [{ times: 1, params: ['arg2'], output: 'arg2' }] },
+        expectedCalls: [
+          { name: 'method1', times: 1, params: ['arg1'], output: 'arg1' },
+          { name: 'method2', times: 1, params: ['arg2'], output: 'arg2' },
+        ],
       };
 
       // Run the saga
@@ -271,7 +275,10 @@ Error: ERROR`);
       // Saga Tester config
       const effectiveAction = { type: 'TYPE' };
       const config = {
-        expectedCalls: { method1: [{ times: 1, params: ['arg1'], output: 'arg1' }], method2: [{ times: 1, params: ['arg2'], output: 'arg2' }] },
+        expectedCalls: [
+          { name: 'method1', times: 1, params: ['arg1'], output: 'arg1' },
+          { name: 'method2', times: 1, params: ['arg2'], output: 'arg2' },
+        ],
         effectiveActions: [effectiveAction, effectiveAction, effectiveAction],
       };
 
@@ -303,7 +310,9 @@ Error: ERROR`);
 
       // Saga Tester config
       const config = {
-        expectedCalls: { method: [{ output: 'stuff' }] },
+        expectedCalls: [
+          { name: 'method', output: 'stuff' },
+        ],
         effectiveActions: [],
       };
 
@@ -333,10 +342,11 @@ Error: ERROR`);
 
       // Saga Tester config
       const config = {
-        expectedCalls: {
-          method1: [{ times: 1, params: ['arg1'], call: true }, { times: 1, params: ['arg2'], call: true }],
-          method2: [{ times: 1, params: ['arg2'], call: true }],
-        },
+        expectedCalls: [
+          { name: 'method1', times: 1, params: ['arg1'], call: true },
+          { name: 'method1', times: 1, params: ['arg2'], call: true },
+          { name: 'method2', times: 1, params: ['arg2'], call: true },
+        ],
       };
 
       // Run the saga
@@ -417,10 +427,10 @@ Error: ERROR`);
 
       // Saga Tester config
       const config = {
-        expectedCalls: {
-          method1: [{ times: 1, params: ['arg1'], output: 'method1-output' }],
-          method2: [{ times: 1, params: ['arg2'], call: true }],
-        },
+        expectedCalls: [
+          { name: 'method1', times: 1, params: ['arg1'], output: 'method1-output' },
+          { name: 'method2', times: 1, params: ['arg2'], call: true },
+        ],
         expectedActions: [
           { action: { type: 'TYPE1', result: 'method1-output' }, times: 1 },
           { action: { type: 'TYPE2', result: 'arg2-method2' }, times: 1 },
@@ -490,7 +500,7 @@ Error: ERROR`);
       }).run(action);
       expect(result).toEqual({ result0: 'mockValue', result1: 'reducer-field-value', result2: 111, result3: 11000, result4: 1100000 });
     });
-    it('should not fail when a real selector returns undefined, and __passOnUndefined ', () => {
+    it('should not fail when a real selector returns undefined, and passOnUndefinedSelector is true', () => {
       // Setup actions and selectors
       const action = { type: 'TYPE' };
       const selector = () => createSelector((state) => state.reducerKey, (stateData) => stateData);
@@ -502,7 +512,7 @@ Error: ERROR`);
       function* saga() { yield takeLatest('TYPE', method); }
 
       // Run the saga
-      expect(new SagaTester(saga, { selectorConfig: { __passOnUndefined: true } }).run(action)).toBe(undefined);
+      expect(new SagaTester(saga, { selectorConfig: {}, options: { passOnUndefinedSelector: true } }).run(action)).toBe(undefined);
     });
     it('should throw error when an incorrectly configured selector is received', () => {
       // Setup actions and selectors
@@ -516,7 +526,7 @@ Error: ERROR`);
       function* saga() { yield takeLatest('TYPE', method); }
 
       // Run the saga
-      const expectedError = 'A selector returned undefined. If this is desirable, provide selectorConfig.__passOnUndefined: true. Otherwise, provide selectorConfig. (step 2)';
+      const expectedError = 'A selector returned undefined. If this is desirable, set config.options.passOnUndefinedSelector to true. Otherwise, adjust config.selectorConfig. (step 2)';
       expect(() => new SagaTester(saga).run(action)).toThrow(expectedError);
     });
     it('should throw error explaining to config selectors when a selector crashes', () => {
@@ -531,7 +541,7 @@ Error: ERROR`);
       function* saga() { yield takeLatest('TYPE', method); }
 
       // Run the saga
-      const expectedError = 'A selector crashed while executing. Either provide the redux value in selectorConfig, or mock it using mockSelector (step 2)';
+      const expectedError = 'A selector crashed while executing. Either provide the redux value in config.selectorConfig, or mock it using mockSelector (step 2)';
       expect(() => new SagaTester(saga).run(action)).toThrow(expectedError);
     });
     it('should throw error when an unexpected selector is received', () => {
@@ -727,14 +737,12 @@ Error: ERROR`);
 
       // Saga Tester config
       const config = {
-        expectedCalls: {
-          method1: [{}],
-          method2: [
-            { params: ['data'] },
-            { times: 2, params: ['dataAgain', null, undefined] },
-          ],
-          method3: [{ output: 'someResult' }],
-        },
+        expectedCalls: [
+          { name: 'method1' },
+          { name: 'method2', params: ['data'] },
+          { name: 'method2', times: 2, params: ['dataAgain', null, undefined] },
+          { name: 'method3', output: 'someResult' },
+        ],
       };
 
       // Run the saga
@@ -763,11 +771,13 @@ Error: ERROR`);
 
       // Run the saga
       new SagaTester(saga, {
-        expectedCalls: {
-          method1: [{ params: ['a', 'b'], call: true }],
-          method2: [{ params: ['a', 'b'], call: true }, { params: ['c', 'd'], output: 'LOL' }],
-          method3: [{ params: ['a', 'b'], call: true }, { params: ['c', 'd'], output: 'LMAO' }],
-        },
+        expectedCalls: [
+          { name: 'method1', params: ['a', 'b'], call: true },
+          { name: 'method2', params: ['a', 'b'], call: true },
+          { name: 'method2', params: ['c', 'd'], output: 'LOL' },
+          { name: 'method3', params: ['a', 'b'], call: true },
+          { name: 'method3', params: ['c', 'd'], output: 'LMAO' },
+        ],
       }).run(action);
     });
     it('should handle call verbs with alternate apis', () => {
@@ -801,12 +811,12 @@ Error: ERROR`);
       }
       // Saga Tester config
       const config = {
-        expectedCalls: {
-          method1: [{ times: 1, call: true, params: ['input1'] }],
-          method2: [{ times: 1, call: true, params: ['input2'] }],
-          method3: [{ times: 1, call: true, params: ['input3'] }],
-          method4: [{ times: 1, call: true, params: ['input4', 'input4-2'] }],
-        },
+        expectedCalls: [
+          { name: 'method1', times: 1, call: true, params: ['input1'] },
+          { name: 'method2', times: 1, call: true, params: ['input2'] },
+          { name: 'method3', times: 1, call: true, params: ['input3'] },
+          { name: 'method4', times: 1, call: true, params: ['input4', 'input4-2'] },
+        ],
       };
 
       // Run the saga
@@ -835,10 +845,10 @@ Error: ERROR`);
 
       // Saga Tester config
       const config = {
-        expectedCalls: {
-          method1: [{ throw: 'SOME ERROR' }],
-          method2: [{ times: 1, params: ['SOME ERROR'] }],
-        },
+        expectedCalls: [
+          { name: 'method1', throw: 'SOME ERROR' },
+          { name: 'method2', times: 1, params: ['SOME ERROR'] },
+        ],
       };
 
       // Run the saga
@@ -854,14 +864,12 @@ Error: ERROR`);
 
       // Saga Tester config
       const config = {
-        expectedCalls: {
-          method1: [{}],
-          method2: [
-            { params: ['data'] },
-            { times: 2, params: ['dataAgain'] },
-          ],
-          method3: [{ output: 'someResult' }],
-        },
+        expectedCalls: [
+          { name: 'method1' },
+          { name: 'method2', params: ['data'] },
+          { name: 'method2', times: 2, params: ['dataAgain'] },
+          { name: 'method3', output: 'someResult' },
+        ],
       };
 
       // Run the saga
@@ -882,7 +890,7 @@ Error: ERROR`);
       const config = {};
 
       // Run the saga
-      const expectedError = 'Received CALL verb with a method named method1, but the SagaTest was not configured to receive this CALL (step 2)';
+      const expectedError = 'Received call effect with a method named method1, but the SagaTest was not configured to receive it (step 2)';
       expect(() => new SagaTester(saga, config).run(action)).toThrow(expectedError);
     });
     it('should throw an error if a known method is CALLed with unexpected parameters', () => {
@@ -895,7 +903,7 @@ Error: ERROR`);
       function* saga() { yield takeLatest('TYPE', method); }
 
       // Saga Tester config
-      const config = { expectedCalls: { method1: [{ params: ['VERY BAD'] }] } };
+      const config = { expectedCalls: [{ name: 'method1', params: ['VERY BAD'] }] };
 
       // Run the saga
       const expectedError = 'no matching set of parameters were found!';
@@ -933,6 +941,7 @@ Error: ERROR`);
       // Saga Tester config
       const config = {
         selectorConfig: { selector1: 'someResult', selector2: 'someOtherResult' },
+        options: { failOnUnconfigured: false },
       };
 
       // Run the saga
@@ -958,11 +967,11 @@ Error: ERROR`);
 
       // Run the saga
       new SagaTester(saga, {
-        expectedGenerators: {
-          generator1: [{ output: 'someResult' }],
-          generator2: [{ times: 2, params: [5, 5] }],
-          generator3: [{ times: 2 }],
-        },
+        expectedCalls: [
+          { name: 'generator1', output: 'someResult' },
+          { name: 'generator2', times: 2, params: [5, 5] },
+          { name: 'generator3', times: 2 },
+        ],
       }).run(action);
     });
     it('should list errors for each generator not called as expected', () => {
@@ -978,11 +987,11 @@ Error: ERROR`);
 
       // Saga Tester config
       const config = {
-        expectedGenerators: {
-          generator1: [{}],
-          generator2: [{ times: 2, params: [5, 5] }],
-          generator3: [{ times: 1 }],
-        },
+        expectedCalls: [
+          { name: 'generator1' },
+          { name: 'generator2', times: 2, params: [5, 5] },
+          { name: 'generator3', times: 1 },
+        ],
       };
 
       // Run the saga
@@ -1003,9 +1012,9 @@ Error: ERROR`);
 
       // Saga Tester config
       const config = {
-        expectedGenerators: {
-          generator: [{ params: [4, 4] }],
-        },
+        expectedCalls: [
+          { name: 'generator', params: [4, 4] },
+        ],
       };
 
       // Run the saga
@@ -1024,7 +1033,7 @@ Error: ERROR`);
       function* saga() { yield takeLatest('TYPE', method); }
 
       // Run the saga
-      const expectedErrors = 'Received mocked generator call with name generator and args 5,5';
+      const expectedErrors = 'Received generator with name generator and args 5,5';
       expect(() => new SagaTester(saga, {}).run(action)).toThrow(expectedErrors);
     });
   });

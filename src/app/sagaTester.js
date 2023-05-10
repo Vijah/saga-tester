@@ -76,8 +76,6 @@ function incrementCallCounter(configObject, args) {
   configObject.receivedArgs.push(args);
 }
 
-function incrementWait(wait) { return typeof wait === 'number' ? wait + 1 : wait; }
-
 function* sideEffect(effect) {
   yield effect;
 }
@@ -126,26 +124,20 @@ const pseudoSleep = () => new Promise((resolve) => { resolve(); });
  *
  *  ``` [{ times: 1, action: someAction('abc') }, { action: someAction(42, 42) }, { type: 'TYPE' }] ```
  *
- * Note that if `times` is not provided, an error is thrown if the method is never called.
- * The `strict` flag causes an error to be thrown the moment a non-matching call to a same-typed
- * action is encountered.
+ * If `times` is not provided, an error is thrown if the method is never called.
+ *
+ * The `strict` flag causes an error to be thrown the moment a non-matching action with the same-typed is dispatched. It is true by default.
  *
  * `expectedCalls`: `Object` where each key is an async method (dispatched with 'call').
  *  Each value is an array of objects containing `times`, `params`, `throw` and `output` (all optional). For instance,
  *  if `someCall` is called once with `call(someCall, 'abc')` and expected output 'asd', and once with `call(someCall, 42, 42)`,
  *  an appropriate config is:
  *
- *  ``` { someCall: [{ times: 1, params: ['abc'], output: 'asd' }, { params: [42, 42] }] } ```
+ *  ``` [{ name: 'someCall', times: 1, params: ['abc'], output: 'asd' }, { name: 'someCall', params: [42, 42] }] ```
  *
- * Note that if `times` is not provided, an error is thrown if the method is never called.
+ * If `times` is not provided, an error is thrown if the method is never called.
  *
- * `expectedGenerators`: `Object` where each key is the name of a mocked generator function (see mockGenerator).
- * Each value is an array of objects containing `times`, `params` and `output` (all optional).
- * NOTE: if the generator is called inside a "call" verb, it is treated as a call action, not a generator.
- * A generator inside a "call" verb does not need to be mocked.
- *
- * Note that all mocked generators must be configured, whereas all non-mocked generators should not be configured.
- * Note that if `times` is not provided (but a config exists for the generator), an error is thrown if it is never called.
+ * Only mocked generators can be intercepted when yielded. If not intercepted, the generator is merely ran.
  *
  * `effectiveActions`: `Array of action` Indicates which actions are "active" in the context of takeEvery and takeLatest actions.
  *  Note that by default, if this is not specified, the first argument of the "run" method is considered to be a contextual action.
@@ -158,8 +150,8 @@ class SagaTester {
     {
       selectorConfig = {},
       expectedActions = [],
-      expectedCalls = {},
-      expectedGenerators = {},
+      expectedCalls = [],
+      expectedGenerators,
       effectiveActions = [],
       sideEffects = [],
       debug = {},
@@ -168,25 +160,23 @@ class SagaTester {
     shouldAssert = true,
   ) {
     const err = (message) => `Error in the configuration of SagaTester: ${message}`;
-    const validConfig = (config) => !Array.isArray(config) && typeof config === 'object' && Object.keys(config).every((key) => Array.isArray(config[key]));
+    const validConfig = (config) => Array.isArray(config) && config.every((c) => typeof c === 'object' && c != null && Object.keys(c).includes('name'));
     const validActions = (config) => Array.isArray(config) && config.every((el) => el.type !== undefined || el.action !== undefined);
 
     assert(typeof saga === 'function' && saga.next === undefined, err('The generator method received is invalid. It must be a reference to a generator method, and it cannot be a running generator.'));
-    assert(!Array.isArray(selectorConfig) && typeof selectorConfig === 'object', err('selectorConfig must be an object containing values'));
-    assert(validConfig(expectedCalls), err('expectedCalls must be an object containing arrays'));
-    assert(validConfig(expectedGenerators), err('expectedGenerators must be an object containing arrays'));
-    assert(validActions(expectedActions), err('expectedActions must be an array of object containing either an attribute "type" or "action"'));
-    assert(validActions(effectiveActions), err('effectiveActions must be an array of object containing either an attribute "type" or "action"'));
+    assert(!Array.isArray(selectorConfig) && typeof selectorConfig === 'object', err('config.selectorConfig must be an object containing values'));
+    assert(validConfig(expectedCalls), err('config.expectedCalls must be a list of objects containing a property "name"'));
+    assert(expectedGenerators == null, err('config.expectedGenerators was removed in 2.0.0; move them all inside expectedCalls'));
+    assert(validActions(expectedActions), err('config.expectedActions must be a list of objects containing either an attribute "type" or "action"'));
+    assert(validActions(effectiveActions), err('config.effectiveActions must be a list of objects containing either an attribute "type" or "action"'));
 
     this.saga = saga;
     this.initialSelectorConfig = selectorConfig;
     this.expectedActions = expectedActions;
     this.expectedCalls = expectedCalls;
-    this.expectedGenerators = expectedGenerators;
     this.actionCalls = undefined;
     this.actionCallsPerType = undefined;
     this.callCalls = undefined;
-    this.generatorCalls = undefined;
     this.errorList = undefined;
     this.assert = shouldAssert;
     this.returnValue = undefined;
@@ -196,23 +186,25 @@ class SagaTester {
 
     const {
       stepLimit = 1000,
-      yieldDecreasesTimer = false,
       useStaticTimes = false,
       waitForSpawned = false,
       executeTakeGeneratorsOnlyOnce = false,
       ignoreTakeGenerators = undefined,
       swallowSpawnErrors = false,
       reduxThunkOptions = {},
+      passOnUndefinedSelector = false,
+      failOnUnconfigured = true,
     } = options;
 
     this.stepLimit = stepLimit;
-    this.yieldDecreasesTimer = yieldDecreasesTimer;
     this.useStaticTimes = useStaticTimes;
     this.waitForSpawned = waitForSpawned;
     this.executeTakeGeneratorsOnlyOnce = executeTakeGeneratorsOnlyOnce;
     this.ignoreTakeGenerators = ignoreTakeGenerators;
     this.swallowSpawnErrors = swallowSpawnErrors;
     this.reduxThunkOptions = reduxThunkOptions;
+    this.passOnUndefinedSelector = passOnUndefinedSelector;
+    this.failOnUnconfigured = failOnUnconfigured;
   }
 
   /**
@@ -289,9 +281,7 @@ class SagaTester {
       this.actionCallsPerType[effectiveType] = { receivedArgs: [] };
     });
     this.callCalls = clone(this.expectedCalls);
-    Object.values(this.callCalls).forEach((el) => { el.forEach((subEl) => { subEl.receivedArgs = []; }); });
-    this.generatorCalls = clone(this.expectedGenerators);
-    Object.values(this.generatorCalls).forEach((el) => { el.forEach((subEl) => { subEl.receivedArgs = []; }); });
+    this.callCalls.forEach((el) => { el.receivedArgs = []; });
     this.errorList = [];
     this.step = 0;
     this.taskId = 0;
@@ -355,17 +345,12 @@ class SagaTester {
    * Generates error messages at the end of a run, if certain expected calls were not fulfilled correctly.
    */
   generateMissingCallErrors() {
-    const { actionCalls, callCalls, generatorCalls, errorList } = this;
+    const { actionCalls, callCalls, errorList } = this;
 
     actionCalls.filter(isUnmetExpectation).forEach((expected) => {
       errorList.push(this.makeError(expected, 'call(s) to action', expected.type || expected.action.type, undefined, true));
     });
-    Object.keys(callCalls)
-      .forEach((methodName) => callCalls[methodName].filter(isUnmetExpectation)
-        .forEach((expected) => { errorList.push(this.makeError(expected, 'CALL verb(s) to', methodName)); }));
-    Object.keys(generatorCalls)
-      .forEach((generatorName) => generatorCalls[generatorName].filter(isUnmetExpectation)
-        .forEach((expected) => { errorList.push(this.makeError(expected, 'call(s) to generator method', generatorName, '\n\nDid you mock your generator using mockGenerator?')); }));
+    callCalls.filter(isUnmetExpectation).forEach((callCall) => { errorList.push(this.makeError(callCall, 'calls to', callCall.name)); });
   }
 
   /**
@@ -523,7 +508,6 @@ class SagaTester {
    * - isRacing (false by default); if true, weakens the checks on take verbs, so a blocked "take" effect does not stop a race that would resolve on other effects.
    */
   processEffect(generator, currentResult, options) {
-    this.countDownTasks(options);
     if (currentResult.value == null) {
       return this.nextOrReturn(generator, currentResult.value, options);
     }
@@ -558,7 +542,8 @@ class SagaTester {
       const methodName = currentResult.value.payload.fn.name;
       subGenerator.name = methodName;
       subGenerator.args = currentResult.value.payload.args;
-      if (this.generatorCalls?.[methodName] == null) {
+      const nameMatches = this.callCalls.filter((c) => c.name === methodName);
+      if (nameMatches.length <= 0) {
         subGenerator.unmocked = true;
       }
       return this.processSubGenerators(generator, subGenerator, { ...options, isTask: true, isBoundToParent: currentResult.value.payload?.detached !== true });
@@ -639,11 +624,11 @@ class SagaTester {
       result = selector(this.selectorConfig);
     } catch (e) {
       this.inError = true;
-      throw new Error(`A selector crashed while executing. Either provide the redux value in selectorConfig, or mock it using mockSelector (step ${this.step})\n\n${e.stack}`);
+      throw new Error(`A selector crashed while executing. Either provide the redux value in config.selectorConfig, or mock it using mockSelector (step ${this.step})\n\n${e.stack}`);
     }
-    if (result === undefined && !this.selectorConfig.__passOnUndefined) {
+    if (result === undefined && !this.passOnUndefinedSelector) {
       this.inError = true;
-      throw new Error(`A selector returned undefined. If this is desirable, provide selectorConfig.__passOnUndefined: true. Otherwise, provide selectorConfig. (step ${this.step})`);
+      throw new Error(`A selector returned undefined. If this is desirable, set config.options.passOnUndefinedSelector to true. Otherwise, adjust config.selectorConfig. (step ${this.step})`);
     }
 
     if (!resultIsMockedSelectorData(result)) {
@@ -659,17 +644,17 @@ class SagaTester {
 
   processCallEffect(generator, value, options) {
     const { currentTask } = options;
-    let methodId = value.payload.fn.name;
+    let methodName = value.payload.fn.name;
     let { args } = value.payload;
 
-    if (methodId === 'retry') {
+    if (methodName === 'retry') {
       // Treat retry as call
       const remainingArgs = args.filter((x, i) => i >= 3);
       // eslint-disable-next-line prefer-destructuring, no-param-reassign
       value.payload.fn = args[2]; value.payload.args = remainingArgs;
-      methodId = args[2].name;
+      methodName = args[2].name;
       args = remainingArgs;
-    } else if (methodId === 'delayP') {
+    } else if (methodName === 'delayP') {
       // handle delay effect
       const result = this.makeNewTask({ result: undefined, wait: args[0], parentTask: currentTask, name: 'delay' });
       return makeInterruption(currentTask, undefined, INTERRUPTION_TYPES.GENERATOR, result.id, this.debug?.interrupt);
@@ -679,21 +664,26 @@ class SagaTester {
     if (currentTask.isSideEffect) {
       matchedCall = { call: true };
     } else {
-      if (!Object.keys(this.callCalls).includes(methodId)) {
+      const nameMatches = this.callCalls.filter((c) => c.name === methodName);
+      if (nameMatches.length <= 0 && this.failOnUnconfigured) {
         this.inError = true;
-        throw new Error(`Received CALL verb with a method named ${methodId}, but the SagaTest was not configured to receive this CALL (step ${this.step})`);
+        throw new Error(`Received call effect with a method named ${methodName}, but the SagaTest was not configured to receive it (step ${this.step})`);
       }
-      const matchedCalls = this.callCalls[methodId].filter((config) => paramsMatch(config.params, args));
-      if (matchedCalls.length === 0) {
-        const expectedArgs = this.callCalls[methodId].map((el) => diffTwoObjects(el.params, args)).join('\n\n');
+      const matchedCalls = nameMatches.filter((config) => paramsMatch(config.params, args));
+      if (matchedCalls.length <= 0 && nameMatches.length > 0) {
+        const expectedArgs = nameMatches.map((el) => diffTwoObjects(el.params, args)).join('\n\n');
         this.inError = true;
-        throw new Error(`Received call effect with amethod named '${methodId}', but no matching set of parameters were found!\n\n${expectedArgs}`);
+        throw new Error(`Received call effect with a method named '${methodName}', but no matching set of parameters were found!\n\n${expectedArgs}`);
       }
       [matchedCall] = matchedCalls;
-      incrementCallCounter(matchedCall, args);
+      if (matchedCall == null) {
+        matchedCall = { call: true };
+      } else {
+        incrementCallCounter(matchedCall, args);
+      }
     }
 
-    return this.triggerNextStepWithResult(matchedCall, generator, { ...options, name: methodId, wait: matchedCall.wait }, value.payload);
+    return this.triggerNextStepWithResult(matchedCall, generator, { ...options, name: methodName, wait: matchedCall.wait }, value.payload);
   }
 
   processPutEffect(generator, value, options) {
@@ -876,23 +866,24 @@ class SagaTester {
   }
 
   processSubGenerators(generator, subGenerator, options) {
-    if (!resultIsMockedGeneratorData(subGenerator) || subGenerator.unmocked || options.currentTask?.isSideEffect) {
+    if ((!this.failOnUnconfigured && (!resultIsMockedGeneratorData(subGenerator) || subGenerator.unmocked)) || options.currentTask?.isSideEffect) {
       return this.triggerNextStepWithResult({ call: true }, generator, { ...options, wait: false, name: subGenerator.name || 'unmocked-generator' }, undefined, subGenerator);
     }
-    const { args, name } = subGenerator;
-    if (this.generatorCalls == null || this.generatorCalls[name] == null) {
+    const { args, name: methodName } = subGenerator;
+    const nameMatches = this.callCalls.filter((c) => c.name === methodName);
+    if (nameMatches.length <= 0 && this.failOnUnconfigured) {
       this.inError = true;
-      throw new Error(`Received mocked generator call with name ${name} and args ${args}, but no such generator was defined in the expectedGenerators config`);
+      throw new Error(`Received generator with name ${methodName} and args ${args}, but no such generator was expected in the expectedCalls config`);
     }
-    const matchedCalls = this.generatorCalls[name].filter((config) => paramsMatch(config.params, args));
-    if (matchedCalls.length === 0) {
-      const expectedArgs = this.generatorCalls[name].map((el) => diffTwoObjects(el.params, args)).join('\n\n');
+    const matchedCalls = nameMatches.filter((config) => paramsMatch(config.params, args));
+    if (matchedCalls.length <= 0 && nameMatches.length > 0) {
+      const expectedArgs = nameMatches.map((el) => diffTwoObjects(el.params, args)).join('\n\n');
       this.inError = true;
-      throw new Error(`Generator method '${name}' was called, but no matching set of parameters were found!\n\n${expectedArgs}`);
+      throw new Error(`Generator method '${methodName}' was called, but no matching set of parameters were found!\n\n${expectedArgs}`);
     }
     incrementCallCounter(matchedCalls[0], args);
 
-    return this.triggerNextStepWithResult(matchedCalls[0], generator, { ...options, wait: matchedCalls[0].wait, name }, undefined, subGenerator);
+    return this.triggerNextStepWithResult(matchedCalls[0], generator, { ...options, wait: matchedCalls[0].wait, name: methodName }, undefined, subGenerator);
   }
 
   triggerNextStepWithResult = (matchedCall, generator, options, effectPayload, subGenerator) => {
@@ -904,7 +895,7 @@ class SagaTester {
 
     if (matchedCall.throw) {
       if (![false, null, undefined].includes(wait)) {
-        const result = this.makeNewTask({ wait: incrementWait(wait), generator: throwGenerator(matchedCall.throw), parentTask: currentTask, name });
+        const result = this.makeNewTask({ wait, generator: throwGenerator(matchedCall.throw), parentTask: currentTask, name });
         return makeInterruption(currentTask, undefined, INTERRUPTION_TYPES.GENERATOR, result.id, this.debug?.interrupt);
       }
       return generator.throw(matchedCall.throw);
@@ -913,7 +904,7 @@ class SagaTester {
     let result;
     if (matchedCall.call) {
       if (isTask) {
-        const task = this.makeNewTask({ wait: incrementWait(wait), generator: subGenerator, name });
+        const task = this.makeNewTask({ wait, generator: subGenerator, name });
         if (currentTask.isSideEffect) {
           task.isSideEffect = true;
         }
@@ -931,13 +922,13 @@ class SagaTester {
         result = task;
       } else if (subGenerator) {
         if (![false, null, undefined].includes(wait)) {
-          result = this.makeNewTask({ wait: incrementWait(wait), generator: subGenerator, parentTask: currentTask, name });
+          result = this.makeNewTask({ wait, generator: subGenerator, parentTask: currentTask, name });
           return makeInterruption(currentTask, undefined, INTERRUPTION_TYPES.GENERATOR, result.id, this.debug?.interrupt);
         }
         result = this.processGenerator(subGenerator, { parentTask: currentTask, name });
       } else {
         if (![false, null, undefined].includes(wait)) {
-          result = this.makeNewTask({ wait: incrementWait(wait), parentTask: currentTask, name });
+          result = this.makeNewTask({ wait, parentTask: currentTask, name });
           result.generator = callMethodGenerator(() => this.executeFn(effectPayload, { currentTask: result }));
           return makeInterruption(currentTask, undefined, INTERRUPTION_TYPES.GENERATOR, result.id, this.debug?.interrupt);
         }
@@ -1002,26 +993,6 @@ class SagaTester {
     if (getDependencies(task, this.pendingTasks).length === 0 && task.id !== 0) {
       // eslint-disable-next-line no-param-reassign
       task.wait = false;
-    }
-  };
-
-  countDownTasks = (options) => {
-    if (options.noNext || !this.yieldDecreasesTimer) {
-      return;
-    }
-    let ran = false;
-    this.pendingTasks.forEach((task) => {
-      if (typeof task.wait === 'number' && task.wait > 0) {
-        // eslint-disable-next-line no-param-reassign
-        task.wait -= 1;
-        if (task.wait === 0) {
-          this.runTask(task);
-          ran = true;
-        }
-      }
-    });
-    if (ran) {
-      this.cleanupRanTasks();
     }
   };
 

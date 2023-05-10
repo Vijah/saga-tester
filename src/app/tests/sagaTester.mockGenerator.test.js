@@ -17,10 +17,10 @@ describe('mockGenerator', () => {
 
     expect(
       new SagaTester(saga, {
-        expectedCalls: {
-          method1: [{ times: 1, params: ['input'] }],
-          method2: [{ times: 1, params: ['input'], output: 'output' }],
-        },
+        expectedCalls: [
+          { name: 'method1', times: 1, params: ['input'] },
+          { name: 'method2', times: 1, params: ['input'], output: 'output' },
+        ],
       }).run('input'),
     ).toBe('output');
   });
@@ -33,7 +33,9 @@ describe('mockGenerator', () => {
 
     expect(
       new SagaTester(saga, {
-        expectedGenerators: { foo: [{ times: 2, params: ['bar'], output: 'brak' }] },
+        expectedCalls: [
+          { name: 'foo', times: 2, params: ['bar'], output: 'brak' },
+        ],
         expectedActions: [{ action: action(), times: 0 }],
       }).run('bar'),
     ).toBe('brak');
@@ -46,7 +48,9 @@ describe('mockGenerator', () => {
 
     expect(
       new SagaTester(saga, {
-        expectedGenerators: { whatever: [{ times: 2, params: ['bar'], call: true }] },
+        expectedCalls: [
+          { name: 'whatever', times: 2, params: ['bar'], call: true },
+        ],
         expectedActions: [{ action: action(), times: 2 }],
       }).run('bar'),
     ).toBe('bar-called');

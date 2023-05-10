@@ -18,7 +18,6 @@ class SagaTester<Saga> {
       selectorConfig?: { [P: string]: any };
       expectedActions?: ActionType[];
       expectedCalls?: { [P: string]: CallType[] };
-      expectedGenerators?: { [P: string]: CallType[] };
       effectiveActions?: Action<any>[];
       sideEffects: ({ wait?: boolean | number, effect: { type: string } })[],
       debug?: {
@@ -28,12 +27,13 @@ class SagaTester<Saga> {
       };
       options?: {
         stepLimit?: number;
-        yieldDecreasesTimer?: boolean;
         useStaticTimes?: boolean;
         waitForSpawned?: boolean;
         executeTakeGeneratorsOnlyOnce?: boolean;
         ignoreTakeGenerators: ActionMatcher | ActionMatcher[];
         swallowSpawnErrors?: boolean;
+        passOnUndefinedSelector?: boolean;
+        failOnUnconfigured?: boolean;
       };
     },
     shouldAssert?: boolean,

@@ -26,12 +26,10 @@ describe('delay', () => {
     }
 
     expect(new SagaTester(saga, {
-      expectedGenerators: {
-        method: [
-          { params: ['slow'], call: true, wait: 75 },
-          { params: ['fast'], call: true, wait: 25 },
-        ],
-      },
+      expectedCalls: [
+        { name: 'method', params: ['slow'], call: true, wait: 75 },
+        { name: 'method', params: ['fast'], call: true, wait: 25 },
+      ],
     }).run()).toEqual([
       [undefined, undefined],
       ['fast', undefined],

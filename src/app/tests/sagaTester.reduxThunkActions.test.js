@@ -35,6 +35,7 @@ describe('sagaTester - reduxThunk actions', () => {
         { wait: 50, effect: call(() => { order++; jest.runAllTimers(); }) },
         { wait: 100, effect: call(() => { order++; jest.runAllTimers(); }) },
       ],
+      options: { failOnUnconfigured: false },
     }).runAsync({ type: 'yes' });
 
     expect(result).toEqual([
@@ -67,6 +68,7 @@ describe('sagaTester - reduxThunk actions', () => {
       ],
       options: {
         reduxThunkOptions: { someOption: 'someValue' },
+        failOnUnconfigured: false,
       },
     }).run();
   });
@@ -95,6 +97,7 @@ describe('sagaTester - reduxThunk actions', () => {
         { wait: 30, changeSelectorConfig: (previousConfig) => ({ ...previousConfig, someFlag: true }) },
         { wait: 50, effect: call(() => { order++; jest.runAllTimers(); }) },
       ],
+      options: { failOnUnconfigured: false },
     }).runAsync();
   });
 });

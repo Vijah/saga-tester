@@ -27,12 +27,12 @@ describe('debugShouldApply', () => {
     }
 
     new SagaTester(saga, {
-      expectedGenerators: {
-        methodInner: [{ call: true, times: 3, wait: true }],
-        method1: [{ call: true, times: 1, wait: true }],
-        method2: [{ call: true, times: 1, wait: true }],
-        method3: [{ call: true, times: 1, wait: true }],
-      },
+      expectedCalls: [
+        { name: 'methodInner', call: true, times: 3, wait: true },
+        { name: 'method1', call: true, times: 1, wait: true },
+        { name: 'method2', call: true, times: 1, wait: true },
+        { name: 'method3', call: true, times: 1, wait: true },
+      ],
       debug: { interrupt: [3, 'method2'], bubble: false, unblock: false },
     }).run();
 
@@ -61,11 +61,11 @@ task: 3-method3, dependencies: 6, interruptionType: @@sagaTester__join__
     }
 
     new SagaTester(saga, {
-      expectedGenerators: {
-        method1: [{ call: true, wait: true }],
-        method2: [{ call: true, wait: true }],
-        method3: [{ call: true, wait: true }],
-      },
+      expectedCalls: [
+        { name: 'method1', call: true, wait: true },
+        { name: 'method2', call: true, wait: true },
+        { name: 'method3', call: true, wait: true },
+      ],
       debug: { interrupt: 0 },
     }).run();
 
@@ -90,11 +90,11 @@ task: 0-root, dependencies: 1,2,3, interruptionType: @@sagaTester__join__
     }
 
     new SagaTester(saga, {
-      expectedGenerators: {
-        method1: [{ call: true, wait: true }],
-        method2: [{ call: true, wait: true }],
-        method3: [{ call: true, wait: true }],
-      },
+      expectedCalls: [
+        { name: 'method1', call: true, wait: true },
+        { name: 'method2', call: true, wait: true },
+        { name: 'method3', call: true, wait: true },
+      ],
       debug: { interrupt: 'root' },
     }).run();
 

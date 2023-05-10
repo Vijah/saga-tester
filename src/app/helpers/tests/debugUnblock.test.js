@@ -49,28 +49,24 @@ describe('debugUnblock', () => {
     const logMock = jest.spyOn(console, 'log').mockImplementation();
 
     expect(new SagaTester(saga, {
-      expectedGenerators: {
-        method: [
-          { params: ['arg1'], call: true, wait: 50 },
-          { params: ['arg2'], call: true, wait: true },
-          { params: ['arg3'], call: true, wait: 70 },
-          { params: ['arg4'], call: true, wait: 60 },
-          { params: ['arg5'], call: true, wait: 100 },
-          { params: ['arg6'], call: true, wait: 200 },
-          { params: ['arg7'], call: true, wait: 80 },
-          { params: ['arg8'], call: true, wait: 110 },
-          { params: ['deep'], call: true, wait: 90 },
-        ],
-        methodNested: [{ params: ['arg6'], call: true, wait: 55 }],
-      },
-      expectedCalls: {
-        calledMethod: [{ params: ['arg8'], call: true }],
-        deeplyNestedMethodWithVeryLongName: [{ call: true }],
-      },
+      expectedCalls: [
+        { name: 'method', params: ['arg1'], call: true, wait: 50 },
+        { name: 'method', params: ['arg2'], call: true, wait: true },
+        { name: 'method', params: ['arg3'], call: true, wait: 70 },
+        { name: 'method', params: ['arg4'], call: true, wait: 60 },
+        { name: 'method', params: ['arg5'], call: true, wait: 100 },
+        { name: 'method', params: ['arg6'], call: true, wait: 200 },
+        { name: 'method', params: ['arg7'], call: true, wait: 80 },
+        { name: 'method', params: ['arg8'], call: true, wait: 110 },
+        { name: 'method', params: ['deep'], call: true, wait: 90 },
+        { name: 'methodNested', params: ['arg6'], call: true, wait: 55 },
+        { name: 'calledMethod', params: ['arg8'], call: true },
+        { name: 'deeplyNestedMethodWithVeryLongName', call: true },
+      ],
       debug: {
         unblock: true,
       },
-      options: { yieldDecreasesTimer: true, useStaticTimes: true },
+      options: { useStaticTimes: true },
     }).run()).toEqual({
       task1: 'arg1-executed-1', // wait 50
       task2: 'arg2-executed-9', // wait: true (aka after everything else)
@@ -91,25 +87,25 @@ describe('debugUnblock', () => {
 
     // first log, tree is pretty big since most tasks are blocked
     expect(logMock.mock.calls[0][0].replace(/\r\n/g, '\n')).toEqual(`-- UNBLOCKING:
-method              id: 1  wait: 43       
+method              id: 1  wait: 50       
 -- TREE:
 calledMethod        id: 10 wait: generator Dependencies: [11]
                     id: 7  wait: all       Dependencies: [1,2,8,10]
                     id: 8  wait: all       Dependencies: [3,4,9]
                     id: 9  wait: all       Dependencies: [5,6]
 root                id: 0  wait: generator Dependencies: [7]
-method              id: 1  wait: 43        Dependencies: []
-methodNested        id: 6  wait: 53        Dependencies: []
-method              id: 4  wait: 56        Dependencies: []
-method              id: 3  wait: 65        Dependencies: []
-method              id: 5  wait: 97        Dependencies: []
+method              id: 1  wait: 50        Dependencies: []
+methodNested        id: 6  wait: 55        Dependencies: []
+method              id: 4  wait: 60        Dependencies: []
+method              id: 3  wait: 70        Dependencies: []
+method              id: 5  wait: 100       Dependencies: []
 method              id: 11 wait: 110       Dependencies: []
 method              id: 2  wait: true      Dependencies: []
 `.replace(/\r\n/g, '\n'));
 
     // Middle log
     expect(logMock.mock.calls[2][0].replace(/\r\n/g, '\n')).toEqual(`-- UNBLOCKING:
-method              id: 4  wait: 51       
+method              id: 4  wait: 60       
 -- TREE:
 calledMethod        id: 10 wait: generator Dependencies: [11]
 deeplyNestedMethodWithVeryLongNameid: 14 wait: generator Dependencies: [15]
@@ -117,14 +113,14 @@ deeplyNestedMethodWithVeryLongNameid: 14 wait: generator Dependencies: [15]
                     id: 8  wait: all       Dependencies: [3,4,9]
                     id: 9  wait: all       Dependencies: [5,6]
 root                id: 0  wait: generator Dependencies: [7]
-methodNested        id: 6  wait: 48        Dependencies: [14]
-method              id: 4  wait: 51        Dependencies: []
-method              id: 3  wait: 60        Dependencies: []
-method              id: 13 wait: 78        Dependencies: []
+methodNested        id: 6  wait: 55        Dependencies: [14]
+method              id: 4  wait: 60        Dependencies: []
+method              id: 3  wait: 70        Dependencies: []
+method              id: 13 wait: 80        Dependencies: []
 method              id: 15 wait: 90        Dependencies: []
-method              id: 5  wait: 92        Dependencies: []
-method              id: 11 wait: 105       Dependencies: []
-method              id: 12 wait: 197       Dependencies: []
+method              id: 5  wait: 100       Dependencies: []
+method              id: 11 wait: 110       Dependencies: []
+method              id: 12 wait: 200       Dependencies: []
 method              id: 2  wait: true      Dependencies: []
 `.replace(/\r\n/g, '\n'));
 

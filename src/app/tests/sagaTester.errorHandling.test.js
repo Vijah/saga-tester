@@ -28,12 +28,7 @@ describe('sagaTester - error handling', () => {
       }
     }
 
-    expect(new SagaTester(saga, {
-      expectedCalls: {
-        doNothing: [{ call: true }],
-        someCall: [{ call: true }],
-      },
-    }).run()).toEqual(error);
+    expect(new SagaTester(saga, { options: { failOnUnconfigured: false } }).run()).toEqual(error);
 
     expect(callback).toHaveBeenCalledTimes(1);
     expect(callback).toHaveBeenCalledWith(error);
@@ -55,10 +50,10 @@ describe('sagaTester - error handling', () => {
     }
 
     expect(new SagaTester(saga, {
-      expectedGenerators: {
-        doNothing: [{ call: true }],
-        someCall: [{ call: true }],
-      },
+      expectedCalls: [
+        { name: 'doNothing', call: true },
+        { name: 'someCall', call: true },
+      ],
     }).run()).toEqual(error);
 
     expect(callback).toHaveBeenCalledTimes(1);
@@ -102,9 +97,10 @@ describe('sagaTester - error handling', () => {
     }
 
     expect(new SagaTester(saga, {
-      expectedCalls: {
-        someCall: [{ wait: 5, throw: 'ERROR' }],
-      },
+      expectedCalls: [
+        { name: 'someCall', wait: 5, throw: 'ERROR' },
+      ],
+      options: { failOnUnconfigured: false },
     }).run({ type: 'yes' })).toEqual(['ERROR', true]);
 
     expect(callback).toHaveBeenCalledTimes(3);
@@ -151,11 +147,12 @@ describe('sagaTester - error handling', () => {
     }
 
     expect(new SagaTester(saga, {
-      expectedCalls: {
-        someCall: [{ throw: 'ERROR' }],
-      },
+      expectedCalls: [
+        { name: 'someCall', throw: 'ERROR' },
+      ],
       options: {
         swallowSpawnErrors: true,
+        failOnUnconfigured: false,
       },
     }).run({ type: 'yes' })).toEqual(['ERROR', false]);
 
@@ -188,6 +185,7 @@ describe('sagaTester - error handling', () => {
       sideEffects: [
         { wait: 50, effect: call(() => { jest.runAllTimers(); }) },
       ],
+      options: { failOnUnconfigured: false },
     }).runAsync();
 
     expect(callback).toHaveBeenCalledTimes(2);
@@ -217,12 +215,13 @@ describe('sagaTester - error handling', () => {
     }
 
     await new SagaTester(saga, {
-      expectedCalls: {
-        promiseMethod: [{ call: true }],
-      },
+      expectedCalls: [
+        { name: 'promiseMethod', call: true },
+      ],
       sideEffects: [
         { wait: 50, effect: call(() => { jest.runAllTimers(); }) },
       ],
+      options: { failOnUnconfigured: false },
     }).runAsync();
 
     expect(callback).toHaveBeenCalledTimes(2);
@@ -252,12 +251,13 @@ describe('sagaTester - error handling', () => {
     }
 
     await new SagaTester(saga, {
-      expectedCalls: {
-        promiseMethod: [{ call: true, wait: 20 }],
-      },
+      expectedCalls: [
+        { name: 'promiseMethod', call: true, wait: 20 },
+      ],
       sideEffects: [
         { wait: 50, effect: call(() => { jest.runAllTimers(); }) },
       ],
+      options: { failOnUnconfigured: false },
     }).runAsync();
 
     expect(callback).toHaveBeenCalledTimes(2);
@@ -288,9 +288,10 @@ describe('sagaTester - error handling', () => {
     }
 
     new SagaTester(saga, {
-      expectedCalls: {
-        deferredMethod: [{ wait: 50, call: true }],
-      },
+      expectedCalls: [
+        { name: 'deferredMethod', wait: 50, call: true },
+      ],
+      options: { failOnUnconfigured: false },
     }).run();
 
     expect(callback).toHaveBeenCalledTimes(2);
@@ -313,7 +314,7 @@ describe('sagaTester - error handling', () => {
       }
     }
 
-    new SagaTester(saga).run();
+    new SagaTester(saga, { options: { failOnUnconfigured: false } }).run();
 
     expect(callback).toHaveBeenCalledTimes(1);
     expect(callback).toHaveBeenCalledWith('root', 'ERROR');
@@ -332,7 +333,7 @@ describe('sagaTester - error handling', () => {
       }
     }
 
-    new SagaTester(saga).run();
+    new SagaTester(saga, { options: { failOnUnconfigured: false } }).run();
 
     expect(callback).toHaveBeenCalledTimes(1);
     expect(callback).toHaveBeenCalledWith('root', 'ERROR');
@@ -372,6 +373,7 @@ describe('sagaTester - error handling', () => {
       sideEffects: [
         { wait: 50, effect: call(() => { jest.runAllTimers(); }) },
       ],
+      options: { failOnUnconfigured: false },
     }).runAsync();
 
     expect(callback).toHaveBeenCalledTimes(2);
@@ -406,7 +408,7 @@ describe('sagaTester - error handling', () => {
       }
     }
 
-    new SagaTester(saga).run();
+    new SagaTester(saga, { options: { failOnUnconfigured: false } }).run();
 
     expect(callback).toHaveBeenCalledTimes(2);
     expect(callback).toHaveBeenCalledWith('noError', true, false);

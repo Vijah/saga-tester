@@ -48,25 +48,21 @@ describe('debugDeadlock', () => {
     let error;
     try {
       new SagaTester(saga, {
-        expectedGenerators: {
-          method: [
-            { params: ['arg1'], call: true, wait: 50 },
-            { params: ['arg2'], call: true, wait: true },
-            { params: ['arg3'], call: true, wait: 70 },
-            { params: ['arg4'], call: true, wait: 60 },
-            { params: ['arg5'], call: true, wait: 100 },
-            { params: ['arg6'], call: true, wait: 200 },
-            { params: ['arg7'], call: true, wait: 80 },
-            { params: ['arg8'], call: true, wait: 110 },
-            { params: ['deep'], call: true, wait: 90 },
-          ],
-          methodNested: [{ params: ['arg6'], call: true, wait: 55 }],
-        },
-        expectedCalls: {
-          calledMethod: [{ params: ['arg8'], call: true }],
-          deeplyNestedMethodWithVeryLongName: [{ call: true }],
-        },
-        options: { stepLimit: 500, yieldDecreasesTimer: true },
+        expectedCalls: [
+          { name: 'method', params: ['arg1'], call: true, wait: 50 },
+          { name: 'method', params: ['arg2'], call: true, wait: true },
+          { name: 'method', params: ['arg3'], call: true, wait: 70 },
+          { name: 'method', params: ['arg4'], call: true, wait: 60 },
+          { name: 'method', params: ['arg5'], call: true, wait: 100 },
+          { name: 'method', params: ['arg6'], call: true, wait: 200 },
+          { name: 'method', params: ['arg7'], call: true, wait: 80 },
+          { name: 'method', params: ['arg8'], call: true, wait: 110 },
+          { name: 'method', params: ['deep'], call: true, wait: 90 },
+          { name: 'methodNested', params: ['arg6'], call: true, wait: 55 },
+          { name: 'calledMethod', params: ['arg8'], call: true },
+          { name: 'deeplyNestedMethodWithVeryLongName', call: true },
+        ],
+        options: { stepLimit: 500 },
       }).run();
     } catch (e) {
       error = e;
@@ -75,7 +71,7 @@ describe('debugDeadlock', () => {
     const expected = `Error was thrown while running SagaTester (step 500).
 
 Error: Saga reached step 500, you are probably looking at an infinite loop somewhere. To alter this limit, provide options.stepLimit to sagaTester.
-15 tasks did not finish. Remaining tasks:
+12 tasks did not finish. Remaining tasks:
 
 [
   {
@@ -178,55 +174,45 @@ task8=>undefined"
     "@@redux-saga/TASK": true,
     "isCancelled": false,
     "id": 6,
-    "wait": 0,
+    "wait": 5,
     "name": "methodNested",
     "parentTask": 0,
-    "started": true,
-    "latestValue": "CALL",
     "dependencies": []
   },
   {
     "@@redux-saga/TASK": true,
     "isCancelled": false,
     "id": 4,
-    "wait": 0,
+    "wait": 10,
     "name": "method",
     "parentTask": 0,
-    "started": true,
-    "latestValue": "PUT",
     "dependencies": []
   },
   {
     "@@redux-saga/TASK": true,
     "isCancelled": false,
     "id": 3,
-    "wait": 0,
+    "wait": 20,
     "name": "method",
     "parentTask": 0,
-    "started": true,
-    "latestValue": "PUT",
     "dependencies": []
   },
   {
     "@@redux-saga/TASK": true,
     "isCancelled": false,
     "id": 5,
-    "wait": 0,
+    "wait": 50,
     "name": "method",
     "parentTask": 0,
-    "started": true,
-    "latestValue": "PUT",
     "dependencies": []
   },
   {
     "@@redux-saga/TASK": true,
     "isCancelled": false,
     "id": 11,
-    "wait": 0,
+    "wait": 60,
     "name": "method",
     "parentTask": 10,
-    "started": true,
-    "latestValue": "PUT",
     "dependencies": []
   },
   {
@@ -236,39 +222,6 @@ task8=>undefined"
     "wait": true,
     "name": "method",
     "parentTask": 0,
-    "dependencies": []
-  },
-  {
-    "@@redux-saga/TASK": true,
-    "isCancelled": false,
-    "id": 12,
-    "wait": 0,
-    "name": "method",
-    "parentTask": 6,
-    "started": true,
-    "latestValue": "PUT",
-    "dependencies": []
-  },
-  {
-    "@@redux-saga/TASK": true,
-    "isCancelled": false,
-    "id": 13,
-    "wait": 0,
-    "name": "method",
-    "parentTask": 6,
-    "started": true,
-    "latestValue": "PUT",
-    "dependencies": []
-  },
-  {
-    "@@redux-saga/TASK": true,
-    "isCancelled": false,
-    "id": 14,
-    "wait": "generator",
-    "parentTask": 6,
-    "name": "deeplyNestedMethodWithVeryLongName",
-    "started": true,
-    "latestValue": "FORK",
     "dependencies": []
   }
 ]`.replace(/\r\n/g, '\n');

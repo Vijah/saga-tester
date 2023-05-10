@@ -54,10 +54,10 @@ describe('sagaTester - sideEffects', () => {
     const method = () => { order++; jest.runAllTimers(); };
 
     const result = await new SagaTester(saga, {
-      expectedCalls: {
-        promiseMethod: [{ times: 1, call: true }],
-        method: [{ times: 0 }],
-      },
+      expectedCalls: [
+        { name: 'promiseMethod', times: 1, call: true },
+        { name: 'method', times: 0 },
+      ],
       sideEffects: [
         { wait: 5, effect: call(method) },
         { wait: 50, effect: call(() => { order++; jest.runAllTimers(); }) },
@@ -96,11 +96,10 @@ describe('sagaTester - sideEffects', () => {
     }
 
     expect(new SagaTester(saga, {
-      expectedActions: [],
-      expectedGenerators: {
-        forkSideEffect: [{ times: 0 }],
-        spawnSideEffect: [{ times: 0 }],
-      },
+      expectedCalls: [
+        { name: 'forkSideEffect', times: 0 },
+        { name: 'spawnSideEffect', times: 0 },
+      ],
       sideEffects: [
         { wait: 50, effect: fork(forkSideEffect, 'arg1') },
         { wait: 50, effect: spawn(spawnSideEffect, 'arg2') },
@@ -137,10 +136,10 @@ describe('sagaTester - sideEffects', () => {
 
     expect(new SagaTester(saga, {
       expectedActions: [],
-      expectedGenerators: {
-        forkSideEffect: [{ times: 0 }],
-        spawnSideEffect: [{ times: 0 }],
-      },
+      expectedCalls: [
+        { name: 'forkSideEffect', times: 0 },
+        { name: 'spawnSideEffect', times: 0 },
+      ],
       sideEffects: [
         { wait: 50, effect: fork(forkSideEffect, 'arg1') },
         { wait: 50, effect: spawn(spawnSideEffect, 'arg2') },
@@ -192,10 +191,10 @@ describe('sagaTester - sideEffects', () => {
 
     expect(new SagaTester(saga, {
       expectedActions: [],
-      expectedGenerators: {
-        forkSideEffect: [{ times: 0 }],
-        spawnSideEffect: [{ times: 0 }],
-      },
+      expectedCalls: [
+        { name: 'forkSideEffect', times: 0 },
+        { name: 'spawnSideEffect', times: 0 },
+      ],
       sideEffects: [
         { effect: fork(forkSideEffect, 'arg1') },
         { effect: spawn(spawnSideEffect, 'arg2') },

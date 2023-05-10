@@ -64,8 +64,10 @@ jest.mock('path/to/generator', () => {
 
 const result = new SagaTester(mySaga, {
   selectorConfig: { someSelector: 'baz', reducerKey: 'reducerValue' },
-  expectedCalls: { someMethod: [{ times: 1, params: ['foo'], output: 'bar' }] },
-  expectedGenerators: { someGenerator: [{ times: 1, params: ['baz'], output: 'brak' }] },
+  expectedCalls: [
+    { name: 'someMethod', times: 1, params: ['foo'], output: 'bar' },
+    { name: 'someGenerator', times: 1, params: ['baz'], output: 'brak' },
+  ],
   expectedActions: [{ action: someAction('bar', 'reducerValue'), times: 1 }],
   effectiveActions: [{ type: 'someType', value: 'someValue' }],
 }).run('foo'); // If the config is not respected, a detailed error is thrown here!
@@ -78,8 +80,8 @@ expect(result).toEqual({ generatorResult: 'brak', takeValue: 'someValue' });
 Additionally, you can mock a selector using mockSelector, and its ID in the selectorConfig will give its value.
 
 To avoid bad configs, if a real selector returns undefined, the saga will fail.
-If you want a selector to return an undefined value without failing, provide
-`selectorConfig: { __passOnUndefined: true }`
+
+If you want a selector to return an undefined value without failing, set `config.options.passOnUndefinedSelector` to true.
 
 ## config.expectedActions
 
@@ -99,36 +101,31 @@ It is `true` by default. Setting it to `false` will ignore similar actions with 
  
 ## config.expectedCalls
 
-`expectedCalls`: `Object` where each key is an async method (dispatched with `call` -- note that the `retry` effect is treated as a `call`).
-Each value is an array of objects containing `times`, `params`, `throw`, `output` and `call` (all optional). For instance,
-if `someCall` is called once with `call(someCall, 'abc')` and expected output 'asd', and once with `call(someCall, 42, 42)`,
-an appropriate config is:
+`expectedCalls`: `Array` where each object has a `name` property being the name of received method (dispatched with `call`, `fork` or `spawn` -- note that the `retry` effect is treated as a `call`).
+
+E.g. if `someCall` is called once with `call(someCall, 'abc')` and expected output 'asd', and once with `call(someCall, 42, 42)`:
 
 ```js
-{ someCall: [{ times: 1, params: ['abc'], output: 'asd' }, { params: [42, 42] }] }
+expectedCalls: [
+  { name: 'someCall', times: 1, params: ['abc'], output: 'asd' },
+  { name: 'someCall', params: [42, 42] },
+],
 ```
 
-Note that if `times` is not provided, it acts as "at least once" an error is thrown if the method is never called.
+If `times` is not provided, it acts as "at least once", i.e. an error is thrown if the method is never called.
 
 - `output` is the mocked result of the call.
 - `throw` is similar to output, except the value of `throw` is thrown. Useful to simulate errors.
 - `call`, if "true" means that the method is actually called (and if it is a generator, it is run), and the result of the generator becomes its output.
+- `wait` is `false` by default, meaning it will be run immediately. If the value is a `number` or `true`, it will create a pseudo-task that is only ran after some time (see Concurrent behavior).
 
 Only one of `output`, `throw` or `call: true` should ever be provided.
 
-## config.expectedGenerators
+### Mocking generators
 
-`expectedGenerators`: `Object` where each key is the ID of a mocked generator (use mockGenerator).
-Each value is an array of objects containing `times`, `params`, `throw`, `call` and `output` (all optional).
+Generally, `generators` will work seamlessly with SagaTester. However, there is an edge case: if they are yielded. Yielding a generator means SagaTester receives a nameless generator method, which it cannot match against the `name` property. The `mockGenerator` provides the ability to inject the name inside the generator, allowing it to be matched by SagaTester.
 
-If a `fork` verb is yielded, it counts as a generator call (and is executed synchronously inside the test).
-
-A generator is called during its execution if:
-
-- It is called by a `call` verb, and the corresponding expectedCalls is set to `call: true`.
-- It is not mocked by mockGenerator.
-- It is yielded by `yield*`.
-- It is mocked, yielded directly by a `yield` and the corresponding expectedGenerator is set to `call: true`.
+Using `mockGenerator` is unnecessary if the generator is called inside a `call`, `fork` or `spawn` effect, since the effect receives the named function and not a running generator object.
 
 The recommended ways of mocking a generator is by forwarding the entire module in `mockGenerator`, which can receive:
 
@@ -136,7 +133,7 @@ The recommended ways of mocking a generator is by forwarding the entire module i
 - a direct generator method (wrapped with metadata that sagaTester recognizes)
 - a string (recommended only if you want to force a new name on your generator for sagaTester to detect; this mock is empty and should never be called with `call: true`).
 
-Example of `mockGenerator`
+Example of `mockGenerator`:
 
 ```js
 jest.mock('path/to/generator', () => {
@@ -151,20 +148,12 @@ export { generator1, generator2, notAGenerator }; // <= notAGenerator will not b
 // your test:
 
 new SagaTester(saga, {
-  expectedGenerators: {
-    generator1: [{ times: 1, params: ['foo'] }],
-    generator2: [{ times: 1, params: ['bar'] }],
-  },
+  expectedCalls: [
+    { name: 'generator1', params: ['foo'] },
+    { name: 'generator2', params: ['bar'] },
+  ],
 }).run();
 ```
-
-Note that if `times` is not provided, it acts as "at least once" and an error is thrown if it is never called.
-
-- `output` is the mocked result of the call.
-- `throw` is similar to output, except the value of `throw` is thrown. Useful to simulate errors.
-- `call`, if "true" means that the method is actually called (and if it is a generator, it is run), and the result of the generator becomes its output.
-
-Only one of `output`, `throw` or `call: true` should ever be provided.
 
 ## config.effectiveActions
 
@@ -179,7 +168,7 @@ When providing a `params` array to match, you can use `PLACEHOLDER_ARGS` to spec
 ```js
 import { PLACEHOLDER_ARGS } from 'saga-tester';
 ...
-  expectedCalls: { foo: [{ times: 1, params: [PLACEHOLDER_ARGS.ANY, PLACEHOLDER_ARGS.TASK, PLACEHOLDER_ARGS.TYPE('number')] }] },
+  expectedCalls: [{ name: 'foo', times: 1, params: [PLACEHOLDER_ARGS.ANY, PLACEHOLDER_ARGS.TASK, PLACEHOLDER_ARGS.TYPE('number')] }],
 ```
 
 - `PLACEHOLDER_ARGS.ANY` inside a `params` array to indicate an argument that is not important.
@@ -191,7 +180,7 @@ import { PLACEHOLDER_ARGS } from 'saga-tester';
 
 SagaTester can simulate concurrently executing tasks, and these tasks can be made to execute after a certain pseudo-delay, which can cause them to execute in a specific order, which can be useful to test code which, for instance, needs one task to finish first, or for a cancellation to happen mid-execution.
 
-Any `call`, `fork`, or `spawn` can be mocked using `expectedGenerators` or `expectedCalls`, and the parameter `wait` can be provided to indicate that some virtual time should elapse before the resulting work should be executed.
+The pseudo-delay of `call`, `fork`, or `spawn` effects can be configured using `expectedCalls[-].wait`:
 
 - If `wait` is falsey, the work will be ran immediately.
 - If it is a `number`, it will wait that given number (it is a pseudo-delay, meaning the test does not actually wait; the number dictates in which order to run the tasks).
@@ -243,7 +232,6 @@ For examples, you can check the sideEffects tests.
 These offer additional hooks to modify how sagaTester runs.
 
 - `config.options.stepLimit`, default: `1000`. When sagaTester has ran for this many steps, it fails. This helps detect infinite loops.
-- (deprecated) `config.options.yieldDecreasesTimer`, default: `false`. If true, each step decreases the times of active tasks by 1.
 - `config.options.usePriorityConcurrency`, default: `false`. If `false`, when e.g. `task1.wait = 40` runs while `task2.wait = 60` is pending, `task2` will be lowered to `wait = 20` (60 - 40 = 20). If `usePriorityConcurrency` is `true`, task timers are not lowered, and instead act like priority weights.
 - `config.options.waitForSpawned`, default: `false`. If `false`, a spawned task will only resolve if it is fast enough to run during the execution of the parent saga. If `true`, each spawned task is awaited when the parent saga finishes, and sagaTester only completes when all spawned tasks have resolved.
 - `config.options.executeTakeGeneratorsOnlyOnce`, default: `false`.
@@ -252,6 +240,8 @@ These offer additional hooks to modify how sagaTester runs.
 - `config.options.ignoreTakeGenerators: pattern`, default: empty. Any action matched by the pattern (which can be a list, just like in the redux-saga api) will not trigger any take generators.
 - `config.options.swallowSpawnErrors`, default: `false`. If `true`, ignores errors thrown by `spawn`'ed tasks to prevent interrupting sagaTester.
 - `config.options.reduxThunkOptions`, default: `{}`. Passed as a third parameter to redux-thunk function actions.
+- `config.options.passOnUndefinedSelector`, default: `false`. If `false`, when a selector returns undefined, SagaTester fails, reminding the user to configure it. 
+- `config.options.failOnUnconfigured`, default: `true`. If `true`, a `spawn`, `fork`, `call` or yielded generator, which has a `name` which does not match any entry in `config.expectedCalls` will cause SagaTester to fail. If `false`, it will default to `{ call: true, wait: false }`. Note that if an entry's `name` property matches but not arguments do not, SagaTester will fail regardless of this option, as it is likely an error the user must be informed about.
 
 ### Debugging
 
