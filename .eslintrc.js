@@ -97,7 +97,7 @@ module.exports = {
     ecmaVersion: 2018,
     sourceType: 'module',
     ecmaFeatures: { modules: true },
-    babelOptions: { configFile: path.join(__dirname, './babel.config.js') },
+    babelOptions: { configFile: path.join(__dirname, './.babelrc.js') },
   },
   settings: {
     'import/resolver': {

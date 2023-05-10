@@ -9,7 +9,6 @@ A tester library for redux-saga, offering the following features:
 
 It has the following limitations:
 
-- Is in ECMA6 and not transpiled (this will change in 2.0.0)
 - Does not handle channels and other advanced saga features to handle complex concurrent behavior (coming in 2.3.0).
 
 ## Install

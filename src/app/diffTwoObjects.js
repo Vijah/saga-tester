@@ -1,4 +1,4 @@
-import format from 'pretty-format';
+import { format } from 'pretty-format';
 import { diffLinesUnified2 } from 'jest-diff';
 
 const diffTwoObjects = (expected, received) => diffLinesUnified2(

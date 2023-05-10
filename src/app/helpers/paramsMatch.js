@@ -1,6 +1,6 @@
 import isEqual from 'lodash.isequal';
 
-import PLACEHOLDER_ARGS from './PLACEHOLDER_ARGS';
+import PLACEHOLDER_ARGS from '../PLACEHOLDER_ARGS';
 
 function paramsMatch(params, args) {
   if (params === undefined) {

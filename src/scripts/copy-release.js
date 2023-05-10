@@ -1,17 +1,10 @@
 const shell = require('shelljs');
 const fs = require('fs');
+const glob = require('glob');
 
-process.stdout.write('Copy source to destination folder');
+process.stdout.write('Copy workspace files to build folder');
 
-shell.rm('-rf', 'build/*.js');
-shell.rm('-rf', 'build/*.d.ts');
-shell.rm('-rf', 'build/*.json');
-
-shell.cp('-R', 'src/app/*', 'build');
-shell.cp('README.md', 'build/README.md');
-
-shell.rm('-rf', 'build/**/tests');
-
+shell.cp('README.md', 'dist/README.md');
 const packageJson = require('../../package.json');
 
 delete packageJson.scripts;
@@ -19,6 +12,14 @@ delete packageJson.devDependencies;
 delete packageJson.peerDependencies;
 delete packageJson.peerDependenciesMeta;
 
-fs.writeFileSync('build/package.json', JSON.stringify(packageJson, undefined, 2));
+packageJson.main = './saga-tester.cjs.js';
+packageJson.module = './saga-tester.es.js';
+
+fs.writeFileSync('dist/package.json', JSON.stringify(packageJson, undefined, 2));
+
+const typescriptFiles = glob.sync('src/app/*.d.ts');
+typescriptFiles.forEach((file) => {
+  shell.cp(file, `dist/${file.substr(8)}`);
+});
 
 shell.echo(`\nCopy done at ${new Date().toString()}`);

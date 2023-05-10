@@ -33,8 +33,3 @@ TODO:
 - add reducers, to run every time an action is dispatched, modifying the selectorConfig
 - implement reducers so that put actions modify the selectorConfig.
 - implement side-effects on: calls and actions, (sideEffects: [], and multipleSideEffects: [][], on: 'start', 'init', 'end').
-
---- 2.0.1
-
-TODO:
-- Transpile to ECMA 5 so the project runs regardless of the environment. Move the untransformed code inside an /es/ subfolder in the build so the user can choose.

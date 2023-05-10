@@ -14,7 +14,7 @@ import {
   mockGenerator,
   SagaTester,
 } from '..';
-import PLACEHOLDER_ARGS from '../helpers/PLACEHOLDER_ARGS';
+import PLACEHOLDER_ARGS from '../PLACEHOLDER_ARGS';
 
 describe('fork', () => {
   it('should handle the fork verb like a generator call', () => {

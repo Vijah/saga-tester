@@ -1,3 +1,10 @@
+## 2.0.1
+
+- Overhaul build with rollup. Should now work out of the box.
+- Fix a bunch of build problems.
+- Fix a bunch of bad typescript behavior.
+- Package is now both in ES and in CJS (commonJS).
+
 ## 2.0.0
 
 - cleanup api by merging expectedGenerators and expectedCalls into one config.

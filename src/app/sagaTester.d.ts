@@ -1,11 +1,11 @@
-interface Action<T = any> { type: T }
+interface Action<T = any> { type: T, [P: string]: any; }
 type ActionType =
   { action: Action<any>, times?: number, strict?: boolean } |
   { type: string, times?: number };
 type CallType =
-  { times?: number, params?: any[], wait?: boolean | number, output?: any } |
-  { times?: number, params?: any[], wait?: boolean | number, throw: any } |
-  { times?: number, params?: any[], wait?: boolean | number, call: boolean };
+  { name: string | undefined; times?: number, params?: any[], wait?: boolean | number, output?: any } |
+  { name: string | undefined; times?: number, params?: any[], wait?: boolean | number, throw: any } |
+  { name: string | undefined; times?: number, params?: any[], wait?: boolean | number, call: boolean };
 
 type DebugType = number | string | boolean | (number | string)[];
 
@@ -17,9 +17,12 @@ class SagaTester<Saga> {
     config?: {
       selectorConfig?: { [P: string]: any };
       expectedActions?: ActionType[];
-      expectedCalls?: { [P: string]: CallType[] };
+      expectedCalls?: CallType[];
       effectiveActions?: Action<any>[];
-      sideEffects: ({ wait?: boolean | number, effect: { type: string } })[],
+      sideEffects?: (
+        { wait?: boolean | number, effect: { type: string } } |
+        { wait?: boolean | number, changeSelectorConfig: ((selectorConfig: { [P: string]: any }) => { [P: string]: any }) }
+      )[],
       debug?: {
         unblock?: DebugType;
         bubble?: DebugType;
@@ -39,9 +42,9 @@ class SagaTester<Saga> {
     shouldAssert?: boolean,
   );
 
-  run: ((...args: Parameters<Saga>) => void) | ((action: Action<any>) => void) | (() => void);
+  run: (...args?: Parameters<Saga> | [Action<any>]) => void;
 
-  runAsync: ((...args: Parameters<Saga>) => Promise<void>) | ((action: Action<any>) => Promise<void>) | (() => Promise<void>);
+  runAsync: (...args?: Parameters<Saga> | [Action<any>]) => Promise<void>;
 
   errorList: string[];
 
