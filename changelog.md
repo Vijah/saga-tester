@@ -12,7 +12,7 @@
 
 ### Breaking changes
 - Move `config.selectorConfig.__passOnUndefined` to `config.options.passOnUndefinedSelector`.
-- Remove deprecated option `config.options.config.options.yieldDecreasesTimer`.
+- Remove deprecated option `config.options.yieldDecreasesTimer`.
 - Stop adding 1 on initialized of number-type `wait` configs (risks of affecting existing tests is very low, unless the configs were 1-unit close to each other).
 
 - Unconfigured generators now fail by default.
