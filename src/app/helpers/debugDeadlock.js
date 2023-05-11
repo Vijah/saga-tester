@@ -20,7 +20,7 @@ const debugDeadlock = (pendingTasks, prefix = 'Deadlock: ') => {
         }).join('@@\n');
       }
     }
-    return {
+    const result = {
       ...p,
       generator: undefined,
       dependencies: getDependencies(p, pendingTasks),
@@ -28,6 +28,10 @@ const debugDeadlock = (pendingTasks, prefix = 'Deadlock: ') => {
       interruption,
       latestValue: p.latestValue?.type,
     };
+    if (Object.keys(result.context).length === 0) {
+      delete result.context;
+    }
+    return result;
   });
   throw new Error(`${prefix}${pendingTasks.length} tasks did not finish. Remaining tasks:\n\n${JSON.stringify(simplifiedPendingTasks, undefined, 2).replace(/@@\\n/g, '\n')}`);
 };

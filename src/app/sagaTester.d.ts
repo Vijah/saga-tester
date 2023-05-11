@@ -40,6 +40,7 @@ class SagaTester<Saga> {
         passOnUndefinedSelector?: boolean;
         failOnUnconfigured?: boolean;
         reducers?: ReducerType | ({ [P: string]: ReducerType });
+        context?: { [P: string]: any };
       };
     },
     shouldAssert?: boolean,

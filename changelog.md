@@ -1,3 +1,9 @@
+## 2.2.0
+
+- Add support for setContext and getContext.
+- Add `config.options.context` to preload the context of the ran saga.
+- Fix selectors not receiving the arguments passed to the effect.
+
 ## 2.1.0
 
 - Add support for cps

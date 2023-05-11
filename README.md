@@ -9,7 +9,6 @@ A tester library for redux-saga, offering the following features:
 
 It has the following limitations:
 
-- Does not work with getContext and setContext (coming in 2.2.0).
 - Does not work with channels (coming in 2.3.0).
 
 ## Install
@@ -245,6 +244,7 @@ These offer additional hooks to modify how sagaTester runs.
 - `config.options.passOnUndefinedSelector`, default: `false`. If `false`, when a selector returns undefined, SagaTester fails, reminding the user to configure it. 
 - `config.options.failOnUnconfigured`, default: `true`. If `true`, a `spawn`, `fork`, `call` or yielded generator, which has a `name` which does not match any entry in `config.expectedCalls` will cause SagaTester to fail. If `false`, it will default to `{ call: true, wait: false }`. Note that if an entry's `name` property matches but not arguments do not, SagaTester will fail regardless of this option, as it is likely an error the user must be informed about.
 - `config.options.reducers`, default: passThrough. Can either be a reducer function `(state, action) => state`, or an object of reducer keys whose values are reducers. If provided, all actions will run through the reducers, modifying the selectorConfig during the test execution. If the action is async, it will only modify the state when resolving.
+- `config.options.context`, default: `{}`. The initial context for the tested saga, as returned by `getContext` effects.
 
 ### Debugging
 

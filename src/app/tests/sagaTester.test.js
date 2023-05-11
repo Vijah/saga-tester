@@ -473,7 +473,7 @@ Error: ERROR`);
       const selector1 = () => createSelector((s) => s.reducerKey, (s) => s.field);
       const selector2 = () => createSelector([(s) => s.a, (s) => s.b, (s) => s.c], (a, b, c) => a + b + c);
       const selector3 = () => createSelector((s) => s.d, (s) => s.e, (d, e) => d + e);
-      const selector4 = (arg) => createSelector((s) => s.f, () => arg, (f, other) => f + other);
+      const selector4 = (arg) => createSelector((s, arg1) => s.f + arg1, () => arg, (f, other) => f + other);
 
       // Saga method for test
       function* saga() {
@@ -481,7 +481,7 @@ Error: ERROR`);
         const result1 = yield select(selector1());
         const result2 = yield select(selector2());
         const result3 = yield select(selector3());
-        const result4 = yield select(selector4(1000000));
+        const result4 = yield select(selector4(1000000), 1000000);
         return { result0, result1, result2, result3, result4 };
       }
 
@@ -498,7 +498,7 @@ Error: ERROR`);
           f: 100000,
         },
       }).run(action);
-      expect(result).toEqual({ result0: 'mockValue', result1: 'reducer-field-value', result2: 111, result3: 11000, result4: 1100000 });
+      expect(result).toEqual({ result0: 'mockValue', result1: 'reducer-field-value', result2: 111, result3: 11000, result4: 2100000 });
     });
     it('should not fail when a real selector returns undefined, and passOnUndefinedSelector is true', () => {
       // Setup actions and selectors

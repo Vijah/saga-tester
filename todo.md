@@ -20,8 +20,3 @@
 TODO:
 - implement actionChannel, as well as effect apis that receive channels
 - implement flush
-
---- 2.2.0
-
-TODO:
-- implement setContext and getContext (children forks cannot modify the context of their parents unless by reference)

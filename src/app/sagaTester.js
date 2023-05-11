@@ -100,6 +100,16 @@ function updateSelectorConfigWithReducers(reducers, selectorConfig, action) {
   return newState;
 }
 
+function getContext(task, contextName) {
+  if (Object.keys(task.context).includes(contextName)) {
+    return task.context[contextName];
+  }
+  if (task.parentTask != null) {
+    return getContext(task.parentTask, contextName);
+  }
+  return undefined;
+}
+
 function* sideEffect(effect) {
   yield effect;
 }
@@ -219,6 +229,7 @@ class SagaTester {
       passOnUndefinedSelector = false,
       failOnUnconfigured = true,
       reducers = (state) => state,
+      context = {},
     } = options;
 
     this.stepLimit = stepLimit;
@@ -231,6 +242,7 @@ class SagaTester {
     this.passOnUndefinedSelector = passOnUndefinedSelector;
     this.failOnUnconfigured = failOnUnconfigured;
     this.reducers = reducers;
+    this.context = context;
   }
 
   /**
@@ -250,7 +262,7 @@ class SagaTester {
 
     try {
       const generator = this.saga(...args);
-      const rootTask = this.makeNewTask({ wait: 'generator', generator, name: 'root' });
+      const rootTask = this.makeNewTask({ wait: 'generator', generator, name: 'root', context: this.context });
       this.initializeSideEffects(rootTask);
       this.returnValue = this.processGenerator(generator, { currentTask: rootTask, name: 'root' });
       while (
@@ -274,7 +286,7 @@ class SagaTester {
 
     try {
       const generator = this.saga(...args);
-      const rootTask = this.makeNewTask({ wait: 'generator', generator, name: 'root' });
+      const rootTask = this.makeNewTask({ wait: 'generator', generator, name: 'root', context: this.context });
       this.initializeSideEffects(rootTask);
       this.returnValue = this.processGenerator(generator, { currentTask: rootTask, name: 'root' });
       while (
@@ -580,6 +592,14 @@ class SagaTester {
     if (currentType === 'ALL' || currentType === 'RACE') {
       return this.processAllOrRace(generator, currentResult.value, options);
     }
+    if (currentType === 'SET_CONTEXT') {
+      Object.assign(options.currentTask.context, currentResult.value.payload);
+      return this.nextOrReturn(generator, undefined, options);
+    }
+    if (currentType === 'GET_CONTEXT') {
+      const result = getContext(options.currentTask, currentResult.value.payload);
+      return this.nextOrReturn(generator, result, options);
+    }
     if (typeof currentResult.value.then === 'function') {
       return this.processPromise(generator, currentResult.value, options);
     }
@@ -644,10 +664,10 @@ class SagaTester {
   }
 
   processSelectEffect(generator, value, options) {
-    const { selector } = value.payload;
+    const { selector, args } = value.payload;
     let result;
     try {
-      result = selector(this.selectorConfig);
+      result = selector(this.selectorConfig, ...args);
     } catch (e) {
       this.inError = true;
       throw new Error(`A selector crashed while executing. Either provide the redux value in config.selectorConfig, or mock it using mockSelector (step ${this.step})\n\n${e.stack}`);
@@ -1091,6 +1111,14 @@ class SagaTester {
 
   makeNewTask(options) {
     const newTask = { '@@redux-saga/TASK': true, isCancelled: false, id: this.taskId, ...options };
+    if (options.context == null && options.generator !== undefined && options.parentTask?.context != null) {
+      newTask.context = clone(options.parentTask.context);
+    } else if (options.context != null && options.generator !== undefined) {
+      newTask.context = clone(options.context);
+    } else {
+      newTask.context = {};
+    }
+
     if (options?.parentTask?.isSideEffect) {
       newTask.isSideEffect = true;
     }
