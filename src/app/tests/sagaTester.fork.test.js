@@ -841,4 +841,54 @@ describe('fork', () => {
       ],
     ]);
   });
+  it('should correctly use subsequent entries in the expectedCalls list if multiple candidates exist', () => {
+    function* method1() { /* do nothing */ }
+    function* method2() { /* do nothing */ }
+
+    function* saga() {
+      const results = [];
+      results.push(yield fork(method1));
+      results.push(yield fork(method1));
+      results.push(yield fork(method1));
+
+      results.push(yield fork(method2, 'arg'));
+      results.push(yield fork(method2, 'arg'));
+      results.push(yield fork(method2, 'arg'));
+
+      return yield join(results);
+    }
+
+    expect(new SagaTester(saga, {
+      expectedCalls: [
+        { name: 'method2', times: 2, params: ['arg'], output: 'method2-1' },
+        { name: 'method1', output: 'method1-1' },
+        { name: 'method1', times: 1, params: [], output: 'method1-2' },
+        { name: 'method1', output: 'method1-3' },
+        { name: 'method2', params: ['arg'], output: 'method2-2' },
+      ],
+    }).run()).toEqual([
+      'method1-1',
+      'method1-2',
+      'method1-3',
+      'method2-1',
+      'method2-1',
+      'method2-2',
+    ]);
+  });
+  it('should fail if there is a times: 0 element in expectedCalls', () => {
+    function* method1() { /* do nothing */ }
+
+    function* saga() {
+      yield fork(method1);
+    }
+
+    expect(() => new SagaTester(saga, {
+      expectedCalls: [
+        { name: 'method1', times: 0, output: 'method1-1' },
+        { name: 'method1', output: 'method1-1' },
+        { name: 'method1', times: 1, params: [], output: 'method1-2' },
+        { name: 'method1', output: 'method1-3' },
+      ],
+    }).run()).toThrow('Expected to receive 0 calls to method1. Received 1');
+  });
 });

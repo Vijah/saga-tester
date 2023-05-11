@@ -3,13 +3,14 @@
 A tester library for redux-saga, offering the following features:
 
 - Is order-independent (changing yield order does not break the test, making your tests less fragile).
-- Handles the following redux-saga/effects: put, putResolve, select, call, apply, all, race, retry, take, takeMaybe, the END action, takeLatest, takeEvery, takeLeading, throttle, debounce, fork, spawn, delay, cancel, cancelled, join.
 - Runs the entire generator method from start to finish with one holistic config.
 - Handles concurrent task executions, error handling and task cancellation internally, like redux-saga.
+- Handles almost the entire redux-saga api (see limitations below).
 
 It has the following limitations:
 
-- Does not handle channels and other advanced saga features to handle complex concurrent behavior (coming in 2.3.0).
+- Does not work with getContext and setContext (coming in 2.2.0).
+- Does not work with channels (coming in 2.3.0).
 
 ## Install
 
@@ -119,6 +120,8 @@ If `times` is not provided, it acts as "at least once", i.e. an error is thrown 
 - `wait` is `false` by default, meaning it will be run immediately. If the value is a `number` or `true`, it will create a pseudo-task that is only ran after some time (see Concurrent behavior).
 
 Only one of `output`, `throw` or `call: true` should ever be provided.
+
+Note that if you want the SAME CALL (same method, same parameters) to yield different results (e.g. if testing an infinite loop), you can duplicate the entry in `expectedCalls` and change its execution properties. The entry that will be executed will be the first non-satisfied entry in terms of times called.
 
 ### Mocking generators
 
@@ -241,6 +244,7 @@ These offer additional hooks to modify how sagaTester runs.
 - `config.options.reduxThunkOptions`, default: `{}`. Passed as a third parameter to redux-thunk function actions.
 - `config.options.passOnUndefinedSelector`, default: `false`. If `false`, when a selector returns undefined, SagaTester fails, reminding the user to configure it. 
 - `config.options.failOnUnconfigured`, default: `true`. If `true`, a `spawn`, `fork`, `call` or yielded generator, which has a `name` which does not match any entry in `config.expectedCalls` will cause SagaTester to fail. If `false`, it will default to `{ call: true, wait: false }`. Note that if an entry's `name` property matches but not arguments do not, SagaTester will fail regardless of this option, as it is likely an error the user must be informed about.
+- `config.options.reducers`, default: passThrough. Can either be a reducer function `(state, action) => state`, or an object of reducer keys whose values are reducers. If provided, all actions will run through the reducers, modifying the selectorConfig during the test execution. If the action is async, it will only modify the state when resolving.
 
 ### Debugging
 

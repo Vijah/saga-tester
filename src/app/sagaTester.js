@@ -70,10 +70,34 @@ function resultIsMockedSelectorData(result) {
   return typeof result === 'object' && result !== null && Object.keys(result).length === 1 && Object.keys(result)[0].startsWith('mock-');
 }
 
+function getFirstIncompleteCallOrLastCall(matchedCalls) {
+  if (matchedCalls.length === 0) {
+    return undefined;
+  }
+  for (let i = 0; i < matchedCalls.length; i++) {
+    const matchedCall = matchedCalls[i];
+    if (matchedCall.times === 0) { return matchedCall; }
+    if (matchedCall.timesCalled === undefined) { return matchedCall; }
+    if (matchedCall.times !== undefined && matchedCall.times > matchedCall.timesCalled) { return matchedCall; }
+  }
+  return matchedCalls[matchedCalls.length - 1];
+}
+
 function incrementCallCounter(configObject, args) {
   /* eslint-disable-next-line no-param-reassign */
   configObject.timesCalled = (configObject.timesCalled === undefined) ? 1 : configObject.timesCalled + 1;
   configObject.receivedArgs.push(args);
+}
+
+function updateSelectorConfigWithReducers(reducers, selectorConfig, action) {
+  if (typeof reducers === 'function') {
+    return reducers(selectorConfig, action);
+  }
+  const newState = clone(selectorConfig);
+  Object.keys(reducers).forEach((key) => {
+    newState[key] = reducers[key](newState[key], action);
+  });
+  return newState;
 }
 
 function* sideEffect(effect) {
@@ -194,6 +218,7 @@ class SagaTester {
       reduxThunkOptions = {},
       passOnUndefinedSelector = false,
       failOnUnconfigured = true,
+      reducers = (state) => state,
     } = options;
 
     this.stepLimit = stepLimit;
@@ -205,6 +230,7 @@ class SagaTester {
     this.reduxThunkOptions = reduxThunkOptions;
     this.passOnUndefinedSelector = passOnUndefinedSelector;
     this.failOnUnconfigured = failOnUnconfigured;
+    this.reducers = reducers;
   }
 
   /**
@@ -524,7 +550,7 @@ class SagaTester {
     if (currentType === 'SELECT') {
       return this.processSelectEffect(generator, currentResult.value, options);
     }
-    if (currentType === 'CALL') {
+    if (currentType === 'CALL' || currentType === 'CPS') {
       return this.processCallEffect(generator, currentResult.value, options);
     }
     if (currentType === 'PUT') {
@@ -675,7 +701,7 @@ class SagaTester {
         this.inError = true;
         throw new Error(`Received call effect with a method named '${methodName}', but no matching set of parameters were found!\n\n${expectedArgs}`);
       }
-      [matchedCall] = matchedCalls;
+      matchedCall = getFirstIncompleteCallOrLastCall(matchedCalls);
       if (matchedCall == null) {
         matchedCall = { call: true };
       } else {
@@ -683,7 +709,7 @@ class SagaTester {
       }
     }
 
-    return this.triggerNextStepWithResult(matchedCall, generator, { ...options, name: methodName, wait: matchedCall.wait }, value.payload);
+    return this.triggerNextStepWithResult(matchedCall, generator, { ...options, name: methodName, wait: matchedCall.wait, isCPS: value.type === 'CPS' }, value.payload);
   }
 
   processPutEffect(generator, value, options) {
@@ -727,6 +753,7 @@ class SagaTester {
       }
     }
 
+    this.selectorConfig = updateSelectorConfigWithReducers(this.reducers, this.selectorConfig, action);
     this.bubbleUpFinishedTask([], [action]);
 
     this.takeGenerators.forEach((tg) => {
@@ -881,13 +908,14 @@ class SagaTester {
       this.inError = true;
       throw new Error(`Generator method '${methodName}' was called, but no matching set of parameters were found!\n\n${expectedArgs}`);
     }
-    incrementCallCounter(matchedCalls[0], args);
+    const matchedCall = getFirstIncompleteCallOrLastCall(matchedCalls);
+    incrementCallCounter(matchedCall, args);
 
-    return this.triggerNextStepWithResult(matchedCalls[0], generator, { ...options, wait: matchedCalls[0].wait, name: methodName }, undefined, subGenerator);
+    return this.triggerNextStepWithResult(matchedCall, generator, { ...options, wait: matchedCall.wait, name: methodName }, undefined, subGenerator);
   }
 
   triggerNextStepWithResult = (matchedCall, generator, options, effectPayload, subGenerator) => {
-    const { isTask, currentTask, isBoundToParent, wait, name } = options;
+    const { isTask, currentTask, isBoundToParent, wait, name, isCPS } = options;
     if (isGenerator(effectPayload?.fn)) {
       // eslint-disable-next-line no-param-reassign
       subGenerator = this.executeFn(effectPayload);
@@ -926,6 +954,10 @@ class SagaTester {
           return makeInterruption(currentTask, undefined, INTERRUPTION_TYPES.GENERATOR, result.id, this.debug?.interrupt);
         }
         result = this.processGenerator(subGenerator, { parentTask: currentTask, name });
+      } else if (isCPS) {
+        result = this.makeNewTask({ wait, parentTask: currentTask, name });
+        result.generator = callMethodGenerator(() => this.executeFn(effectPayload, { currentTask: result, isCPS }));
+        return makeInterruption(currentTask, undefined, INTERRUPTION_TYPES.GENERATOR, result.id, this.debug?.interrupt);
       } else {
         if (![false, null, undefined].includes(wait)) {
           result = this.makeNewTask({ wait, parentTask: currentTask, name });
@@ -957,6 +989,24 @@ class SagaTester {
 
   executeFn({ context, fn, args }, options) {
     const method = context != null ? fn.bind(context) : fn;
+
+    if (options?.isCPS) {
+      const { currentTask } = options;
+      const cpsTask = this.makeNewTask({ wait: 'promise', parentTask: currentTask, name: 'cps-callback' });
+      currentTask.wait = 'generator';
+      method(...args, (error, returnValue) => {
+        this.pendingTasks = this.pendingTasks.filter((p) => p.id !== cpsTask.id);
+        if (error != null) {
+          currentTask.wait = 'error';
+          currentTask.result = error;
+        } else {
+          currentTask.wait = 0;
+          currentTask.result = returnValue;
+        }
+      });
+      return currentTask.result;
+    }
+
     const result = method(...args);
     if (typeof result?.then !== 'function') {
       return result;
@@ -990,6 +1040,28 @@ class SagaTester {
         task.result = result;
       }
     }
+
+    if (task.generator === undefined && task.wait === 'error') {
+      // This block of code is the result of treating all blocks like runnables.
+      // race and all are not "really" runnables.
+      // In case of their children failing, we must cause all children to be cancelled.
+      // race/all-type tasks are the only kinds of tasks without a generator and which can be in error.
+
+      // eslint-disable-next-line no-param-reassign
+      task.parentTask.wait = 'error';
+      // eslint-disable-next-line no-param-reassign
+      task.parentTask.result = task.result;
+      // eslint-disable-next-line no-param-reassign
+      task.wait = 'all';
+      // eslint-disable-next-line no-param-reassign
+      task.interruption = previousInterruption;
+      this.cancelChildren(task);
+      // eslint-disable-next-line no-param-reassign
+      task.wait = 'error';
+      // eslint-disable-next-line no-param-reassign
+      delete task.interruption;
+    }
+
     if (getDependencies(task, this.pendingTasks).length === 0 && task.id !== 0) {
       // eslint-disable-next-line no-param-reassign
       task.wait = false;

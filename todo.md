@@ -12,6 +12,7 @@
 --- If an unjoined fork throws and this leads to the parent throwing, do other children tasks cancel as a result, EVEN IF the parent catches the error, or ONLY IF the parent terminates as a result of throwing?
 - If a put or putResolve with async logic (redux-thunk) throws, does the parent task throw and/or is cancelled as well?
 - Does redux-saga support using a put or putResolve effect is inside a race or an all? 
+- Is there a reason why the api call([context, fnName], ...args) is not replicated for fork, spawn and cps in the API doc?
 - Don't forget TODOs in the code.
 
 --- 2.3.0
@@ -24,12 +25,3 @@ TODO:
 
 TODO:
 - implement setContext and getContext (children forks cannot modify the context of their parents unless by reference)
-
---- 2.1.0
-
-TODO:
-- implement cps
-- allow defining the same matcher (e.g. same method same params) multiple times, to define multiple outputs or side effects for the same call (useful for sagas with infinite loops).
-- add reducers, to run every time an action is dispatched, modifying the selectorConfig
-- implement reducers so that put actions modify the selectorConfig.
-- implement side-effects on: calls and actions, (sideEffects: [], and multipleSideEffects: [][], on: 'start', 'init', 'end').

@@ -11,6 +11,8 @@ type DebugType = number | string | boolean | (number | string)[];
 
 type ActionMatcher = string | ((action: { type: string }) => boolean);
 
+type ReducerType = (state: { [P: string]: any }, action: Action<any>) => { [P: string]: any };
+
 class SagaTester<Saga> {
   constructor(
     saga: Saga,
@@ -37,6 +39,7 @@ class SagaTester<Saga> {
         swallowSpawnErrors?: boolean;
         passOnUndefinedSelector?: boolean;
         failOnUnconfigured?: boolean;
+        reducers?: ReducerType | ({ [P: string]: ReducerType });
       };
     },
     shouldAssert?: boolean,

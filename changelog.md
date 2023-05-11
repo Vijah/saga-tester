@@ -1,3 +1,10 @@
+## 2.1.0
+
+- Add support for cps
+- Possibly fix a bug where errors from async calls inside all/race were incorrectly bubbled up.
+- Allow defining the same matcher (e.g. same method name and same params) multiple times, to define multiple outputs or side effects for the same call (useful for sagas with infinite loops).
+- Implement `config.options.reducers` such that put actions modify the selectorConfig like real reducers.
+
 ## 2.0.1
 
 - Overhaul build with rollup. Should now work out of the box.
