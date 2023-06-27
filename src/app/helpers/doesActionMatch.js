@@ -1,4 +1,9 @@
-const doesActionMatch = (action, pattern) => {
+import END_TYPE from './END_TYPE';
+
+const doesActionMatch = (action, pattern, matchEnd = true) => {
+  if (matchEnd && action?.type === END_TYPE) {
+    return true;
+  }
   if (pattern === '*') {
     return action != null;
   }

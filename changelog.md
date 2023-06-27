@@ -1,3 +1,7 @@
+## 2.3.0
+
+- Add support for `actionChannel`, `channel`, `eventChannel`, `flush` and `multicastChannel` (`multicastChannel` is barely mentionned in the doc, but it's there!).
+
 ## 2.2.0
 
 - Add support for setContext and getContext.

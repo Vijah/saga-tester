@@ -3,7 +3,7 @@ import debugTaskHeader from './debugTaskHeader';
 
 const debugTask = (t) => {
   if (t['@@redux-saga/TASK'] !== true) {
-    return t.type; // We're logging an action pattern
+    return t.type || `channel ${t.channelId}:${JSON.stringify(t.event)}`; // We're logging an action pattern
   }
   const header = debugTaskHeader(t);
   let value = '';

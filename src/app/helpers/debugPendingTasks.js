@@ -7,7 +7,8 @@ const debugPendingTasks = (tasks) => tasks.map((t) => {
     return `${header} (pending)`;
   }
   const value = debugRecursivePendingTaskValue(t.interruption.pending);
-  return `${header} ${value === 'Resolved' ? '(pending)' : `Partially resolved value: \r\n${value}`}`;
+  const { channelId } = t.interruption;
+  return `${header} ${value === 'Resolved' ? '(pending)' : `Partially resolved value${channelId != null ? ` (channel: ${channelId})` : ''}: \r\n${value}`}`;
 }).join('\r\n');
 
 export default debugPendingTasks;

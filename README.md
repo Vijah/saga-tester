@@ -1,15 +1,12 @@
 # @vijah/saga-tester
 
-A tester library for redux-saga, offering the following features:
+A tester library for redux-saga, reverse-engineered from the API documentation, offering the following features:
 
-- Is order-independent (changing yield order does not break the test, making your tests less fragile).
-- Runs the entire generator method from start to finish with one holistic config.
-- Handles concurrent task executions, error handling and task cancellation internally, like redux-saga.
-- Handles almost the entire redux-saga api (see limitations below).
-
-It has the following limitations:
-
-- Does not work with channels (coming in 2.3.0).
+- Order-independent config (changing yield order does not break the test, making your tests less fragile).
+- Runs the entire saga from start to finish with one holistic config.
+- Handles concurrent task executions, error handling, task cancellation and action propagation (including channels), like redux-saga.
+- Handles the entire (documented) redux-saga api (though there are some ambiguities to clear up, see [todo.md](todo.md)).
+- Unit tests for this project also act as a neat reference for how to use redux-saga.
 
 ## Install
 
@@ -232,17 +229,17 @@ For examples, you can check the sideEffects tests.
 
 These offer additional hooks to modify how sagaTester runs.
 
-- `config.options.stepLimit`, default: `1000`. When sagaTester has ran for this many steps, it fails. This helps detect infinite loops.
+- `config.options.stepLimit`, default: `1000`. When sagaTester has run for this many steps, it fails. This helps detect infinite loops.
 - `config.options.usePriorityConcurrency`, default: `false`. If `false`, when e.g. `task1.wait = 40` runs while `task2.wait = 60` is pending, `task2` will be lowered to `wait = 20` (60 - 40 = 20). If `usePriorityConcurrency` is `true`, task timers are not lowered, and instead act like priority weights.
 - `config.options.waitForSpawned`, default: `false`. If `false`, a spawned task will only resolve if it is fast enough to run during the execution of the parent saga. If `true`, each spawned task is awaited when the parent saga finishes, and sagaTester only completes when all spawned tasks have resolved.
 - `config.options.executeTakeGeneratorsOnlyOnce`, default: `false`.
   - If `true`, effects `debounce`, `throttle`, `takeEvery`, `takeLeading` and `takeLatest` will only ever be executed once.
-  - By default, these effects will create as many tasks as would be created in a normal saga execution.
+  - If `false`, these effects will create as many tasks as would be created in a normal saga execution.
 - `config.options.ignoreTakeGenerators: pattern`, default: empty. Any action matched by the pattern (which can be a list, just like in the redux-saga api) will not trigger any take generators.
 - `config.options.swallowSpawnErrors`, default: `false`. If `true`, ignores errors thrown by `spawn`'ed tasks to prevent interrupting sagaTester.
-- `config.options.reduxThunkOptions`, default: `{}`. Passed as a third parameter to redux-thunk function actions.
+- `config.options.reduxThunkOptions`, default: `{}`. Passed as a third parameter to redux-thunk-style actions.
 - `config.options.passOnUndefinedSelector`, default: `false`. If `false`, when a selector returns undefined, SagaTester fails, reminding the user to configure it. 
-- `config.options.failOnUnconfigured`, default: `true`. If `true`, a `spawn`, `fork`, `call` or yielded generator, which has a `name` which does not match any entry in `config.expectedCalls` will cause SagaTester to fail. If `false`, it will default to `{ call: true, wait: false }`. Note that if an entry's `name` property matches but not arguments do not, SagaTester will fail regardless of this option, as it is likely an error the user must be informed about.
+- `config.options.failOnUnconfigured`, default: `true`. If `true`, a `spawn`, `fork`, `call` or yielded generator, which has a `name` which does not match any entry in `config.expectedCalls` will cause SagaTester to fail. If `failOnUnconfigured` is `false`, the unmatched call will default to `{ call: true, wait: false }`. Note that if an entry's `name` property matches but arguments do not, SagaTester will fail regardless of this option, as it is likely to be a misconfiguration.
 - `config.options.reducers`, default: passThrough. Can either be a reducer function `(state, action) => state`, or an object of reducer keys whose values are reducers. If provided, all actions will run through the reducers, modifying the selectorConfig during the test execution. If the action is async, it will only modify the state when resolving.
 - `config.options.context`, default: `{}`. The initial context for the tested saga, as returned by `getContext` effects.
 
@@ -268,11 +265,13 @@ SagaTester was designed to be detached from as many dependencies as possible.
 The need for maintenance in this library is not large, including `pretty-format`, `jest-diff`, `lodash.isequal`
 and indirectly (via matching string literals and api-mock-up), `redux-saga` and `reselect`.
 
-### Possible future features 
+### Future features
 
-Not all `redux-saga` features are supported. See [todo.md](todo.md)
+See [todo.md](todo.md)
 
-Other ideas not in the todo list:
+Other ideas which we have no plans to work on, but which could be neat:
+
+- Automatic mocking of generators.
 
 Mocking generators must be made manually by wrapping the generators inside mockGenerator; there is currently no other way of naming the resulting generator method. A babel plugin could be made to run on all relevant javascript, wrapping all exports of generator methods inside mockGenerator... If anyone ever codes this, that would be nice, although it should be opt-in (adding a generic import to the test file) so as not to pollute non-saga tests.
 
