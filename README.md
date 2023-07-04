@@ -50,11 +50,11 @@ We can test it the following way:
 
 ```js
 jest.mock('path/to/selector', () => {
-  const { mockSelector } = jest.requireActual('saga-tester');
+  const { mockSelector } = jest.requireActual('@vijah/saga-tester');
   return mockSelector('someSelector');
 });
 jest.mock('path/to/generator', () => {
-  const { mockGenerator } = jest.requireActual('saga-tester');
+  const { mockGenerator } = jest.requireActual('@vijah/saga-tester');
   return mockGenerator(jest.requireActual('path/to/generator'));
 });
 
@@ -77,7 +77,7 @@ Additionally, you can mock a selector using mockSelector, and its ID in the sele
 
 To avoid bad configs, if a real selector returns undefined, the saga will fail.
 
-If you want a selector to return an undefined value without failing, set `config.options.passOnUndefinedSelector` to true.
+If you want a selector to return an undefined value without failing, set `config.options.passOnUndefinedSelector` to `true`.
 
 ## config.expectedActions
 
@@ -113,7 +113,7 @@ If `times` is not provided, it acts as "at least once", i.e. an error is thrown 
 - `output` is the mocked result of the call.
 - `throw` is similar to output, except the value of `throw` is thrown. Useful to simulate errors.
 - `call`, if "true" means that the method is actually called (and if it is a generator, it is run), and the result of the generator becomes its output.
-- `wait` is `false` by default, meaning it will be run immediately. If the value is a `number` or `true`, it will create a pseudo-task that is only ran after some time (see Concurrent behavior).
+- `wait` is `false` by default, meaning it will be run immediately. If the value is a `number` or `true`, it will create a pseudo-task that is only run after some time (see Concurrent behavior).
 
 Only one of `output`, `throw` or `call: true` should ever be provided.
 
@@ -135,7 +135,7 @@ Example of `mockGenerator`:
 
 ```js
 jest.mock('path/to/generator', () => {
-  const { mockGenerator } = jest.requireActual('saga-tester');
+  const { mockGenerator } = jest.requireActual('@vijah/saga-tester');
   return mockGenerator(jest.requireActual('path/to/generator'));
 });
 
@@ -161,7 +161,7 @@ Each time an effect "consumes" an `effectiveActions`, it is removed from the lis
 
 ## Partial param matching
 
-When providing a `params` array to match, you can use `PLACEHOLDER_ARGS` to specify a logic for matching different from equality.
+When providing a `params` array, you can use `PLACEHOLDER_ARGS` to specify a logic for matching different from equality.
 
 ```js
 import { PLACEHOLDER_ARGS } from 'saga-tester';
@@ -169,21 +169,21 @@ import { PLACEHOLDER_ARGS } from 'saga-tester';
   expectedCalls: [{ name: 'foo', times: 1, params: [PLACEHOLDER_ARGS.ANY, PLACEHOLDER_ARGS.TASK, PLACEHOLDER_ARGS.TYPE('number')] }],
 ```
 
-- `PLACEHOLDER_ARGS.ANY` inside a `params` array to indicate an argument that is not important.
-- `PLACEHOLDER_ARGS.TASK` inside a `params` array to indicate a task object of any content.
-- `PLACEHOLDER_ARGS.TYPE(type)` inside a `params` array to indicate a value of `typeof type`.
-- `PLACEHOLDER_ARGS.FN((value) => boolean)` inside a `params` array to indicate a value for which the method returns true.
+- `PLACEHOLDER_ARGS.ANY` indicates an argument that is not important.
+- `PLACEHOLDER_ARGS.TASK` indicates a task object of any content.
+- `PLACEHOLDER_ARGS.TYPE(type)` indicates a value of `typeof type`.
+- `PLACEHOLDER_ARGS.FN((value) => boolean)` indicates a value for which the method returns true.
 
 ## Concurrent behavior
 
-SagaTester can simulate concurrently executing tasks, and these tasks can be made to execute after a certain pseudo-delay, which can cause them to execute in a specific order, which can be useful to test code which, for instance, needs one task to finish first, or for a cancellation to happen mid-execution.
+SagaTester can simulate concurrently executing tasks. This is done using pseudo-delays (does not actually consume time - it is merely an ordering value), which can cause tasks to execute in a specific order. This is useful if you need one task to finish first, or for a cancellation to happen mid-execution.
 
-The pseudo-delay of `call`, `fork`, or `spawn` effects can be configured using `expectedCalls[-].wait`:
+Pseudo-delays for `call`, `fork`, or `spawn` effects can be configured using `expectedCalls[-].wait`:
 
-- If `wait` is falsey, the work will be ran immediately.
-- If it is a `number`, it will wait that given number (it is a pseudo-delay, meaning the test does not actually wait; the number dictates in which order to run the tasks).
-- If it is `true`, it will be ran only when all other tasks which can be run have ran.
-- All pending work with identical `wait` are ran simultaneously.
+- If `wait` is falsey, the work will be run immediately.
+- If it is a `number`, it will "wait" that given number (the number dictates in the order to run the tasks - the test will not actually wait).
+- If it is `true`, it will be run only when all other tasks which can be run have ran.
+- All pending work with identical `wait` are run simultaneously (exact ordering not guaranteed, there is no parallelism).
 
 The supported saga effects simulate `redux-saga` behavior, meaning that:
 
@@ -192,9 +192,9 @@ The supported saga effects simulate `redux-saga` behavior, meaning that:
 - Cancellation will spread to the children.
 - Unhandled errors will bubble up from the children to the parents, and cause siblings to be cancelled if the parent cannot handle the error.
 - `all` will await all of its children.
-- `race` resolves when one of its children completes, and cancels all of the losers.
+- `race` resolves when one of its children completes, and cancels the losers.
 - `delay(time)` acts as a task with `wait: time`.
-- When multiple tasks are blocked, the fastest task (lowest `wait`) is ran.
+- When multiple tasks are blocked, the fastest task (lowest `wait`) is run.
 - A task will block after a `take` effect, unblocking only when the right action is dispatched.
 - A higher effect method like `takeLeading`, `takeLatest`, `takeEvery`, `debounce` and `throttle` will create new tasks when matching actions, in the manner specified in the redux-saga api (see tests for examples).
 
